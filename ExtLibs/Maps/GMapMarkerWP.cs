@@ -13,6 +13,10 @@ namespace MissionPlanner.Maps
     {
         string wpno = "";
         public bool selected = false;
+
+        /// <summary>always-visible label under the marker, e.g. "Loiter 400 ft"</summary>
+        public string AltLabel;
+        static Font labelFont;
         SizeF txtsize = SizeF.Empty;
         static Dictionary<string, Bitmap> fontBitmaps = new Dictionary<string, Bitmap>();
         static Font font;
@@ -57,6 +61,25 @@ namespace MissionPlanner.Maps
 
             if (Overlay.Control.Zoom> 16 || IsMouseOver)
                 g.DrawImageUnscaled(fontBitmaps[wpno], midw,midh);
+
+            if (!string.IsNullOrEmpty(AltLabel) && (Overlay.Control.Zoom >= 12 || IsMouseOver))
+            {
+                if (labelFont == null)
+                    labelFont = new Font("Arial", 8, FontStyle.Bold);
+                // small blue "bubble" (pill) under the marker
+                var size = g.MeasureString(AltLabel, labelFont);
+                float h = size.Height + 2;
+                float w = size.Width + 6;
+                float x = LocalPosition.X + Size.Width / 2f - w / 2f;
+                float y = LocalPosition.Y + Size.Height + 2;
+                using (var bg = new SolidBrush(Color.FromArgb(225, 25, 105, 215)))
+                {
+                    g.FillEllipse(bg, x - h / 2, y, h, h);
+                    g.FillEllipse(bg, x + w - h / 2, y, h, h);
+                    g.FillRectangle(bg, x, y, w, h);
+                }
+                g.DrawString(AltLabel, labelFont, Brushes.White, x + 3, y + 1);
+            }
         }
     }
 }

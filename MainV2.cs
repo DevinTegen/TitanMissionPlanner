@@ -736,6 +736,8 @@ namespace MissionPlanner
 
             _connectionControl.ShowLinkStats += (sender, e) => ShowConnectionStatsForm();
             SetupRebootButton();
+            // mission marker altitude labels use the configured altitude unit
+            ArduPilot.WPOverlay.AltUnitProvider = () => CurrentState.AltUnit;
             srtm.datadirectory = $"{Settings.GetDataDirectory()}srtm";
 
             try

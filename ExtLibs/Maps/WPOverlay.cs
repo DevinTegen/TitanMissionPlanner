@@ -57,6 +57,8 @@ namespace MissionPlanner.ArduPilot
                 var itemnext = a + 1 < missionitems.Count ? missionitems[a + 1] : default(Locationwp);
 
                 ushort command = item.id;
+                labelCommand = command;
+                labelFrame = item.frame;
 
                 // invalid locationwp
                 if (command == 0)
@@ -400,6 +402,53 @@ namespace MissionPlanner.ArduPilot
         /// <param name="lat"></param>
         /// <param name="alt"></param>
         /// <param name="color"></param>
+        /// <summary>display unit for altitude labels ("ft", "m"); set by the application</summary>
+        public static Func<string> AltUnitProvider;
+
+        // command / frame of the mission item being drawn, for its altitude label
+        ushort labelCommand;
+        byte labelFrame;
+
+        string AltLabelFor(double alt)
+        {
+            string unit = "";
+            try
+            {
+                unit = AltUnitProvider?.Invoke() ?? "";
+            }
+            catch
+            {
+            }
+
+            string prefix = "";
+            switch ((MAVLink.MAV_CMD) labelCommand)
+            {
+                case MAVLink.MAV_CMD.LOITER_UNLIM:
+                case MAVLink.MAV_CMD.LOITER_TURNS:
+                case MAVLink.MAV_CMD.LOITER_TIME:
+                case MAVLink.MAV_CMD.LOITER_TO_ALT:
+                    prefix = "Loiter ";
+                    break;
+                case MAVLink.MAV_CMD.TAKEOFF:
+                case MAVLink.MAV_CMD.VTOL_TAKEOFF:
+                    prefix = "Takeoff ";
+                    break;
+                case MAVLink.MAV_CMD.LAND:
+                case MAVLink.MAV_CMD.VTOL_LAND:
+                    prefix = "Land ";
+                    break;
+            }
+
+            string suffix = "";
+            var frame = (MAVLink.MAV_FRAME) labelFrame;
+            if (frame == MAVLink.MAV_FRAME.GLOBAL_TERRAIN_ALT || frame == MAVLink.MAV_FRAME.GLOBAL_TERRAIN_ALT_INT)
+                suffix = " AGL";
+            else if (frame == MAVLink.MAV_FRAME.GLOBAL || frame == MAVLink.MAV_FRAME.GLOBAL_INT)
+                suffix = " MSL";
+
+            return prefix + alt.ToString("0") + (unit != "" ? " " + unit : "") + suffix;
+        }
+
         private void addpolygonmarker(string tag, double lng, double lat, double? alt, Color? color, double wpradius, MAVLink.MAV_MISSION_TYPE type = MAVLink.MAV_MISSION_TYPE.MISSION, Color? fillcolor = null)
         {
             try
@@ -413,6 +462,8 @@ namespace MissionPlanner.ArduPilot
                     {
                         m.ToolTipMode = MarkerTooltipMode.OnMouseOver;
                         m.ToolTipText = "Alt: " + alt.Value.ToString("0");
+                        if (tag != "H")
+                            ((GMapMarkerWP) m).AltLabel = AltLabelFor(alt.Value);
                     }
                     m.Tag = tag;
                 }
