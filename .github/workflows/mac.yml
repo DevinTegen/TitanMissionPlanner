@@ -1,6 +1,10 @@
 name: OSX Build
 on: [push, workflow_dispatch, pull_request]
 
+# Forks default GITHUB_TOKEN to read-only; the release step needs to publish the DMG.
+permissions:
+  contents: write
+
 jobs:
   buildIOS:
     name: Build IOS
