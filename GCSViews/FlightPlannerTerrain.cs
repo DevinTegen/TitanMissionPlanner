@@ -22,12 +22,21 @@ namespace MissionPlanner.GCSViews
     ///  - terrain altitude heat map over the visible map
     ///  - mission terrain-clearance check (legs closer to the ground than a minimum are drawn red,
     ///    and Write WPs asks for confirmation)
-    ///  - upload of terrain to the autopilot's SD card covering the route + 1 mile
+    ///  - upload of terrain to the autopilot's SD card covering the route + a buffer (default 5 miles)
     ///  - one-click terrain-following RTL setup
     /// </summary>
     public partial class FlightPlanner
     {
-        const double OneMileMetres = 1609.344;
+        const double MileMetres = 1609.344;
+
+        /// <summary>how far around the mission area terrain is uploaded to the vehicle, miles</summary>
+        public static double TerrainUploadBufferMiles
+        {
+            get => Settings.Instance.GetDouble("Terrain_UploadBufferMiles", 5);
+            set => Settings.Instance["Terrain_UploadBufferMiles"] = value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        static string BufferText => TerrainUploadBufferMiles.ToString("0.#") + (TerrainUploadBufferMiles == 1 ? " mile" : " miles");
 
         GMapOverlay terrainHeatOverlay;
         GMapOverlay terrainClearanceOverlay;
@@ -143,8 +152,26 @@ namespace MissionPlanner.GCSViews
             var report = new ToolStripMenuItem("Terrain clearance report...");
             report.Click += (s, e) => ShowTerrainClearanceReport();
 
-            var upload = new ToolStripMenuItem("Upload terrain to vehicle (route + 1 mile)...");
+            var upload = new ToolStripMenuItem();
             upload.Click += (s, e) => UploadTerrainToVehicle();
+            terrain.DropDownOpening += (s, e) => upload.Text = "Upload terrain to vehicle (route + " + BufferText + ")...";
+            upload.Text = "Upload terrain to vehicle (route + " + BufferText + ")...";
+
+            var uploadArea = new ToolStripMenuItem("Terrain upload distance around the route...");
+            uploadArea.Click += (s, e) =>
+            {
+                double miles = TerrainUploadBufferMiles;
+                if (InputBox.Show("Terrain upload", "Upload terrain this many miles around the mission area", ref miles) !=
+                    DialogResult.OK)
+                    return;
+                if (miles < 0.5 || miles > 25)
+                {
+                    CustomMessageBox.Show("Use between 0.5 and 25 miles.", "Terrain upload");
+                    return;
+                }
+
+                TerrainUploadBufferMiles = miles;
+            };
 
             var rtl = new ToolStripMenuItem("Set up terrain-following RTL...");
             rtl.Click += (s, e) => SetupTerrainFollowingRtl();
@@ -152,7 +179,7 @@ namespace MissionPlanner.GCSViews
             terrain.DropDownItems.AddRange(new ToolStripItem[]
             {
                 terrainHeatMenuItem, terrainCheckMenuItem, terrainClearanceMenuItem, report,
-                new ToolStripSeparator(), upload, rtl
+                new ToolStripSeparator(), upload, uploadArea, rtl
             });
 
             var index = contextMenuStrip1.Items.IndexOf(mapToolToolStripMenuItem);
@@ -663,20 +690,25 @@ namespace MissionPlanner.GCSViews
             if (mav.MAV.cs.Location != null && mav.MAV.cs.Location.Lat != 0 && mav.MAV.cs.Location.Lng != 0)
                 points.Add((mav.MAV.cs.Location.Lat, mav.MAV.cs.Location.Lng));
 
-            var blocks = TerrainDat.BlocksCovering(points, OneMileMetres, spacing);
+            var bufferMiles = TerrainUploadBufferMiles;
+            var blocks = TerrainDat.BlocksCovering(points, bufferMiles * MileMetres, spacing);
             if (blocks.Count == 0)
                 return;
 
             var files = blocks.Select(a => TerrainDat.FileName(a.LatDegrees, a.LonDegrees)).Distinct().ToList();
             bool terrainEnabled = mav.MAV.param["TERRAIN_ENABLE"].Value != 0;
 
-            var question = "Upload terrain for the whole mission area plus 1 mile around it to the " +
+            double kb = blocks.Count * 2;
+            var sizeText = kb >= 1024 ? (kb / 1024).ToString("0.0") + " MB" : kb.ToString("0") + " KB";
+            var question = "Upload terrain for the whole mission area plus " + BufferText + " around it to the " +
                            "vehicle's SD card?\n\n" +
-                           blocks.Count + " terrain blocks (" + (blocks.Count * 2) + " KB) at " + spacing +
+                           blocks.Count + " terrain blocks (" + sizeText + ") at " + spacing +
                            " m spacing (TERRAIN_SPACING), into " + string.Join(", ", files) + ".\n" +
                            "The area covers every waypoint and the straight-line return home from anywhere " +
                            "inside the mission.\n\n" +
-                           "Over USB this takes under a minute; over a telemetry radio it can take several minutes." +
+                           "Over USB this takes about " + Math.Max(1, (int)Math.Ceiling(kb / 600)) + " minute(s); over a " +
+                           "telemetry radio it can take roughly " + Math.Max(1, (int)Math.Ceiling(kb / 40)) +
+                           " minutes, so connect by USB for big areas." +
                            (terrainEnabled
                                ? "\nTerrain is paused (TERRAIN_ENABLE=0) during the upload and turned back on afterwards."
                                : "\n\nTERRAIN_ENABLE is 0, so the vehicle will not use terrain until it is set to 1 " +
