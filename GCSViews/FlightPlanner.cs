@@ -62,6 +62,7 @@ namespace MissionPlanner.GCSViews
         {
             InitializeComponent();
             Init();
+            InitTerrainTools();
         }
 
 
@@ -657,6 +658,10 @@ namespace MissionPlanner.GCSViews
         /// <param name="e"></param>
         public void BUT_write_Click(object sender, EventArgs e)
         {
+            // warn if the mission comes too close to the terrain
+            if (!ConfirmTerrainClearanceBeforeWrite())
+                return;
+
             if ((altmode) CMB_altmode.SelectedValue == altmode.Absolute)
             {
                 if ((int) DialogResult.No ==
@@ -1698,6 +1703,9 @@ namespace MissionPlanner.GCSViews
                 return;
 
             updateRowNumbers();
+
+            // re-check terrain clearance (debounced, runs in the background)
+            ScheduleTerrainClearance(true);
 
             PointLatLngAlt home = new PointLatLngAlt();
             if (TXT_homealt.Text != "" && TXT_homelat.Text != "" && TXT_homelng.Text != "")
