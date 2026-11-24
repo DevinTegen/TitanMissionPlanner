@@ -57,6 +57,11 @@ namespace MissionPlanner.GCSViews
         MissionProfile lastProfile;
         string notice = "";
 
+        // live radius editors, updated while dragging the map handle
+        NumericUpDown radiusBox;
+        TrackBar radiusSlider;
+        bool radiusDrag;
+
         // mouse
         GMapMarker hoverMarker;
         int dragIndex = -3;
@@ -226,7 +231,7 @@ namespace MissionPlanner.GCSViews
 
             detail.Dock = DockStyle.Bottom;
             detail.Height = 360;
-            detail.AutoScroll = true;
+            detail.AutoScroll = false;
             detail.BackColor = Panel1;
 
             list.Dock = DockStyle.Fill;
@@ -436,6 +441,49 @@ namespace MissionPlanner.GCSViews
         {
             var r = Math.Abs(GetParam(wp, RadiusParam(wp.id)));
             return r < 1 ? DefaultLoiterRadius() : r;
+        }
+
+        /// <summary>radius to draw: the real one, else the minimum, else 60 m so there is something to drag</summary>
+        static double DisplayRadius(Locationwp wp)
+        {
+            var r = LoiterRadius(wp);
+            if (r >= 1)
+                return r;
+            var min = MinLoiterRadiusMetres();
+            return min > 0 ? min : 60;
+        }
+
+        /// <summary>set a loiter's radius (metres), keeping its direction and never below the minimum</summary>
+        void SetLoiterRadius(int index, double metres)
+        {
+            var item = items[index];
+            int n = RadiusParam(item.id);
+            bool ccw = CounterClockwise(item);
+            var r = Math.Max(metres, MinLoiterRadiusMetres());
+            r = Math.Max(1, r);
+            PutParam(ref item, n, (float) (ccw ? -r : r));
+            items[index] = item;
+        }
+
+        void ShowRadiusInEditors(double metres)
+        {
+            suppressEvents = true;
+            try
+            {
+                var ft = (decimal) Math.Round(metres * FtPerM);
+                if (radiusBox != null && !radiusBox.IsDisposed)
+                    radiusBox.Value = Math.Max(radiusBox.Minimum, Math.Min(radiusBox.Maximum, ft));
+                if (radiusSlider != null && !radiusSlider.IsDisposed)
+                {
+                    if ((int) ft > radiusSlider.Maximum)
+                        radiusSlider.Maximum = (int) (Math.Ceiling((double) ft / 500) * 500);
+                    radiusSlider.Value = Math.Max(radiusSlider.Minimum, Math.Min(radiusSlider.Maximum, (int) ft));
+                }
+            }
+            finally
+            {
+                suppressEvents = false;
+            }
         }
 
         static bool CounterClockwise(Locationwp wp) =>
@@ -742,7 +790,7 @@ namespace MissionPlanner.GCSViews
                 {
                     ItemIndex = i, Label = MarkerLabel(i, wp), Command = wp.id, Selected = selected == i,
                     AltText = MarkerText(wp),
-                    LoiterRadiusMetres = IsLoiter(wp.id) ? LoiterRadius(wp) : 0,
+                    LoiterRadiusMetres = IsLoiter(wp.id) ? DisplayRadius(wp) : 0,
                     LoiterCounterClockwise = IsLoiter(wp.id) && CounterClockwise(wp)
                 });
             }
@@ -776,6 +824,18 @@ namespace MissionPlanner.GCSViews
             foreach (var m in itemMarkers)
                 markerOverlay.Markers.Add(m);
 
+            // drag handle on the selected loiter's circle
+            if (selected >= 0 && selected < items.Count && IsLoiter(items[selected].id) &&
+                (items[selected].lat != 0 || items[selected].lng != 0))
+            {
+                var wp = items[selected];
+                var r = DisplayRadius(wp);
+                var c = new PointLatLngAlt(wp.lat, wp.lng);
+                var edge = c.newpos(90, r);
+                markerOverlay.Markers.Add(new GMapMarkerRadiusHandle(edge, c, selected,
+                    "r " + FtText(r) + (LoiterRadius(wp) < 1 ? " (default)" : "")));
+            }
+
             if (hasHome)
                 markerOverlay.Markers.Add(new GMapMarkerPlanItem(home)
                 {
@@ -801,7 +861,9 @@ namespace MissionPlanner.GCSViews
             mouseMoved = false;
             mouseDownStart = e.Location;
             lastMouse = e.Location;
-            dragIndex = hoverMarker is GMapMarkerPlanItem pi ? pi.ItemIndex : -3;
+            radiusDrag = hoverMarker is GMapMarkerRadiusHandle;
+            dragIndex = hoverMarker is GMapMarkerPlanItem pi ? pi.ItemIndex :
+                hoverMarker is GMapMarkerRadiusHandle rh ? rh.ItemIndex : -3;
             if (dragIndex != -3)
                 map.CanDragMap = false;
         }
@@ -813,6 +875,19 @@ namespace MissionPlanner.GCSViews
             if (!mouseMoved && Math.Abs(e.X - mouseDownStart.X) + Math.Abs(e.Y - mouseDownStart.Y) < 4)
                 return;
             mouseMoved = true;
+
+            if (radiusDrag && dragIndex >= 0 && dragIndex < items.Count)
+            {
+                var m = map.FromLocalToLatLng(e.X, e.Y);
+                var wpc = items[dragIndex];
+                var dist = new PointLatLngAlt(wpc.lat, wpc.lng).GetDistance(new PointLatLngAlt(m.Lat, m.Lng));
+                // snap to 5 ft
+                var ft = Math.Max(5, Math.Round(dist * FtPerM / 5) * 5);
+                SetLoiterRadius(dragIndex, ft / FtPerM);
+                ShowRadiusInEditors(LoiterRadius(items[dragIndex]));
+                RedrawMap();
+                return;
+            }
 
             if (dragIndex != -3)
             {
@@ -851,6 +926,18 @@ namespace MissionPlanner.GCSViews
             map.CanDragMap = true;
             var index = dragIndex;
             dragIndex = -3;
+
+            if (radiusDrag)
+            {
+                radiusDrag = false;
+                if (mouseMoved)
+                {
+                    Changed(false);
+                    UpdateSummary();
+                }
+
+                return;
+            }
 
             if (index != -3)
             {
@@ -959,7 +1046,7 @@ namespace MissionPlanner.GCSViews
                 c.Dispose();
             }
 
-            int w = Math.Max(240, list.ClientSize.Width - 8);
+            int w = Math.Max(240, right.Width - SystemInformation.VerticalScrollBarWidth - 14);
             int y = 4;
             y = AddRow(-1, "H", "Mission Start", FtText(home.Alt) + " MSL", y, w);
             for (int i = 0; i < items.Count; i++)
@@ -1093,6 +1180,8 @@ namespace MissionPlanner.GCSViews
 
         void RebuildDetail()
         {
+            radiusBox = null;
+            radiusSlider = null;
             detail.SuspendLayout();
             foreach (Control c in detail.Controls.Cast<Control>().ToList())
             {
@@ -1118,6 +1207,13 @@ namespace MissionPlanner.GCSViews
             }
 
             detail.ResumeLayout();
+
+            // fit the editor to its contents (no scrolling): the mission list takes the rest
+            int bottom = 0;
+            foreach (Control c in detail.Controls)
+                bottom = Math.Max(bottom, c.Bottom);
+            int maxH = Math.Max(200, right.ClientSize.Height - rightHeader.Height - 130);
+            detail.Height = Math.Min(maxH, bottom + 12);
         }
 
         int DetailHeader(string number, string title, int index)
@@ -1330,23 +1426,25 @@ namespace MissionPlanner.GCSViews
 
             if (wp.lat != 0 || wp.lng != 0)
             {
-                FieldLabel("Latitude", y);
-                Number(y, wp.lat, -90, 90, 7, v =>
+                int half = (detail.ClientSize.Width - 24) / 2;
+                FieldLabel("Lat / Lon (or drag on the map)", y);
+                y += 26;
+                var lat = Number(y, wp.lat, -90, 90, 7, v =>
                 {
                     var item = items[index];
                     item.lat = v;
                     items[index] = item;
                     Changed(false);
-                });
-                y += 34;
-                FieldLabel("Longitude", y);
-                Number(y, wp.lng, -180, 180, 7, v =>
+                }, 12);
+                lat.Width = half - 4;
+                var lon = Number(y, wp.lng, -180, 180, 7, v =>
                 {
                     var item = items[index];
                     item.lng = v;
                     items[index] = item;
                     Changed(false);
-                });
+                }, 12 + half + 4);
+                lon.Width = half - 4;
             }
         }
 
@@ -1356,29 +1454,49 @@ namespace MissionPlanner.GCSViews
             int n = RadiusParam(wp.id);
             var min = MinLoiterRadiusMetres();
             var minFt = Math.Ceiling(min * FtPerM);
+            var curFt = Math.Round(Math.Max(LoiterRadius(wp), min) * FtPerM);
 
             FieldLabel("Radius (ft)", y);
             // never below the plane's minimum radius
-            Number(y, Math.Max(LoiterRadius(wp) * FtPerM, minFt), Math.Max(0, minFt), 30000, 0, v =>
+            radiusBox = Number(y, curFt, Math.Max(0, minFt), 30000, 0, v =>
             {
-                var item = items[index];
-                var sign = GetParam(item, n) < 0 ? -1 : 1;
-                PutParam(ref item, n, (float) (sign * Math.Max(v / FtPerM, min)));
-                items[index] = item;
+                SetLoiterRadius(index, v / FtPerM);
+                ShowRadiusInEditors(LoiterRadius(items[index]));
                 Changed(false);
-            });
+            }, 150);
             y += 32;
+
+            radiusSlider = new TrackBar
+            {
+                Location = new Point(12, y), Width = detail.ClientSize.Width - 24,
+                Minimum = (int) Math.Max(0, minFt),
+                Maximum = (int) Math.Max(Math.Max(minFt + 500, 1500), Math.Ceiling(curFt / 500) * 500),
+                TickFrequency = 100, SmallChange = 5, LargeChange = 50
+            };
+            radiusSlider.Value = (int) Math.Max(radiusSlider.Minimum, Math.Min(radiusSlider.Maximum, curFt));
+            radiusSlider.ValueChanged += (s, e) =>
+            {
+                if (suppressEvents)
+                    return;
+                var ft = Math.Round(radiusSlider.Value / 5.0) * 5;
+                SetLoiterRadius(index, ft / FtPerM);
+                ShowRadiusInEditors(LoiterRadius(items[index]));
+                Changed(false);
+            };
+            detail.Controls.Add(radiusSlider);
+            y += 40;
 
             var info = new Label
             {
-                Text = min > 0
-                    ? "Plane minimum: " + FtText(min) + " (set under Mission Start)"
-                    : "Minimum radius unknown (connect, or set it under Mission Start)",
+                Text = (min > 0
+                           ? "Plane minimum " + FtText(min) + ". "
+                           : "Plane minimum unknown (set it under Mission Start). ") +
+                       "Or drag the white handle on the circle.",
                 ForeColor = Color.Silver, Font = new Font("Arial", 8.5f), Location = new Point(12, y),
-                Size = new Size(detail.ClientSize.Width - 24, 18)
+                Size = new Size(detail.ClientSize.Width - 24, 30)
             };
             detail.Controls.Add(info);
-            y += 22;
+            y += 32;
 
             var ccw = new CheckBox
             {
@@ -1388,15 +1506,13 @@ namespace MissionPlanner.GCSViews
             ccw.CheckedChanged += (s, e) =>
             {
                 var item = items[index];
-                var r = Math.Max(LoiterRadius(item), min);
-                if (r < 1)
-                    r = 60;
+                double r = Math.Max(DisplayRadius(item), min);
                 PutParam(ref item, n, (float) (ccw.Checked ? -r : r));
                 items[index] = item;
                 Changed(false);
             };
             detail.Controls.Add(ccw);
-            return y + 32;
+            return y + 30;
         }
 
         void SetParam(int index, int n, double v)

@@ -183,4 +183,60 @@ namespace MissionPlanner.GCSViews
             }
         }
     }
+
+    /// <summary>handle on the edge of the selected loiter circle: drag it to set the radius</summary>
+    public class GMapMarkerRadiusHandle : GMapMarker
+    {
+        public int ItemIndex;
+        public PointLatLng Centre;
+        public string Text;
+        const int R = 10;
+        static Font font;
+
+        public GMapMarkerRadiusHandle(PointLatLng p, PointLatLng centre, int index, string text) : base(p)
+        {
+            ItemIndex = index;
+            Centre = centre;
+            Text = text;
+            Size = new Size(R * 2 + 8, R * 2 + 8);
+            Offset = new Point(-R - 4, -R - 4);
+        }
+
+        public override void OnRender(IGraphics g)
+        {
+            if (font == null)
+                font = new Font("Arial", 8, FontStyle.Bold);
+            float cx = LocalPosition.X + R + 4, cy = LocalPosition.Y + R + 4;
+            if (Overlay?.Control != null)
+            {
+                var c = Overlay.Control.FromLatLngToLocal(Centre);
+                var o = Overlay.Control.FromLatLngToLocal(Position);
+                float ccx = cx + (c.X - o.X), ccy = cy + (c.Y - o.Y);
+                using (var pen = new Pen(Color.FromArgb(220, 255, 255, 255), 1.5f) {DashStyle = DashStyle.Dash})
+                    g.DrawLine(pen, ccx, ccy, cx, cy);
+            }
+
+            using (var b = new SolidBrush(Color.White))
+                g.FillEllipse(b, cx - R, cy - R, R * 2, R * 2);
+            using (var pen = new Pen(GMapMarkerPlanItem.Orange, 3))
+                g.DrawEllipse(pen, cx - R, cy - R, R * 2, R * 2);
+            using (var pen = new Pen(Color.FromArgb(60, 60, 60), 1.6f))
+            {
+                g.DrawLine(pen, cx - 5, cy, cx + 5, cy);
+                g.DrawLine(pen, cx - 5, cy, cx - 2, cy - 3);
+                g.DrawLine(pen, cx - 5, cy, cx - 2, cy + 3);
+                g.DrawLine(pen, cx + 5, cy, cx + 2, cy - 3);
+                g.DrawLine(pen, cx + 5, cy, cx + 2, cy + 3);
+            }
+
+            if (!string.IsNullOrEmpty(Text))
+            {
+                var sz = g.MeasureString(Text, font);
+                var rect = new RectangleF(cx + R + 4, cy - sz.Height / 2 - 2, sz.Width + 8, sz.Height + 4);
+                using (var bg = new SolidBrush(Color.FromArgb(220, 20, 20, 20)))
+                    g.FillRectangle(bg, rect);
+                g.DrawString(Text, font, Brushes.White, rect.X + 4, rect.Y + 2);
+            }
+        }
+    }
 }
