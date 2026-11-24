@@ -2512,7 +2512,7 @@ namespace MissionPlanner
             MainMenu.Items.Insert(index < 0 ? MainMenu.Items.Count : index, MenuReboot);
         }
 
-        /// <summary>Top-bar "PLAN" button for the QGC-style mission planning screen</summary>
+        /// <summary>Top-bar "QPLAN" button for the QGC-style mission planning screen</summary>
         public ToolStripButton MenuPlan;
 
         private void SetupPlanButton()
@@ -2520,7 +2520,7 @@ namespace MissionPlanner
             MenuPlan = new ToolStripButton
             {
                 Name = "MenuPlan",
-                Text = "PLAN",
+                Text = "QPLAN",
                 ToolTipText = "Mission planning (QGC style)",
                 Image = MenuFlightPlanner.Image,
                 ImageScaling = MenuFlightPlanner.ImageScaling,
@@ -2534,7 +2534,7 @@ namespace MissionPlanner
             };
             MenuPlan.Click += (s, e) =>
             {
-                MyView.ShowScreen("Plan");
+                MyView.ShowScreen("QPlan");
                 SaveConfig();
             };
             var index = MainMenu.Items.IndexOf(MenuFlightPlanner);
@@ -3391,7 +3391,7 @@ namespace MissionPlanner
 
             MyView.AddScreen(new MainSwitcher.Screen("FlightData", FlightData, true));
             MyView.AddScreen(new MainSwitcher.Screen("FlightPlanner", FlightPlanner, true));
-            MyView.AddScreen(new MainSwitcher.Screen("Plan", typeof(GCSViews.PlanView), true));
+            MyView.AddScreen(new MainSwitcher.Screen("QPlan", typeof(GCSViews.PlanView), true));
             MyView.AddScreen(new MainSwitcher.Screen("HWConfig", typeof(GCSViews.InitialSetup), false));
             MyView.AddScreen(new MainSwitcher.Screen("SWConfig", typeof(GCSViews.SoftwareConfig), false));
             MyView.AddScreen(new MainSwitcher.Screen("Simulation", Simulation, true));

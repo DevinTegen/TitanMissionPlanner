@@ -46,7 +46,7 @@ namespace MissionPlanner.GCSViews
             ForeColor = Color.Gainsboro;
         }
 
-        const int Left_ = 58, Right_ = 14, Top_ = 10, Bottom_ = 22;
+        const int Left_ = 78, Right_ = 14, Top_ = 10, Bottom_ = 40;
 
         bool TryScale(out double minFt, out double maxFt, out double totalM)
         {
@@ -95,24 +95,34 @@ namespace MissionPlanner.GCSViews
                     {
                         var y = Y(v, minFt, maxFt);
                         g.DrawLine(grid, Left_, y, Width - Right_, y);
-                        g.DrawString(v.ToString("0") + " ft", font, text, 2, y - 7);
+                        g.DrawString(v.ToString("0"), font, text, 20, y - 7);
                     }
 
-                    double totalMi = totalM / MPerMile;
-                    double stepMi = NiceStep(totalMi / 6);
-                    for (double v = 0; v <= totalMi + 1e-9; v += stepMi)
+                    double totalFt = totalM * FtPerM;
+                    double stepFt2 = NiceStep(totalFt / 5);
+                    for (double v = 0; v <= totalFt + 1e-9; v += stepFt2)
                     {
-                        var x = X(v * MPerMile, totalM);
-                        g.DrawLine(grid, x, Top_, x, Height - Bottom_);
-                        g.DrawString(v.ToString(stepMi < 1 ? "0.0#" : "0.#") + " mi", font, text, x - 10, Height - Bottom_ + 4);
+                        var x = X(v / FtPerM, totalM);
+                        g.DrawLine(grid, x, Height - Bottom_, x, Height - Bottom_ + 5);
+                        var t = v.ToString("0");
+                        var ts = g.MeasureString(t, font);
+                        g.DrawString(t, font, text, x - ts.Width / 2, Height - Bottom_ + 20);
                     }
+
+                    var title = "Height AMSL (ft)";
+                    var tsz = g.MeasureString(title, font);
+                    var state = g.Save();
+                    g.TranslateTransform(4, Top_ + (Height - Top_ - Bottom_) / 2f + tsz.Width / 2);
+                    g.RotateTransform(-90);
+                    g.DrawString(title, font, text, 0, 0);
+                    g.Restore(state);
                 }
 
                 var pts = profile.Points;
 
                 // terrain (filled to the bottom), in runs where it is known
-                using (var fill = new SolidBrush(Color.FromArgb(150, 139, 105, 70)))
-                using (var edge = new Pen(Color.FromArgb(200, 170, 130, 90), 1.5f))
+                using (var fill = new SolidBrush(Color.FromArgb(45, 40, 170, 60)))
+                using (var edge = new Pen(Color.FromArgb(40, 190, 70), 2f))
                 {
                     var run = new List<PointF>();
 
@@ -147,7 +157,7 @@ namespace MissionPlanner.GCSViews
                 }
 
                 // flight path, red where clearance is below the minimum
-                using (var ok = new Pen(Color.FromArgb(40, 150, 255), 2.5f))
+                using (var ok = new Pen(Color.FromArgb(255, 160, 20), 2.5f))
                 using (var low = new Pen(Color.FromArgb(255, 60, 40), 3f))
                 {
                     for (int i = 1; i < pts.Count; i++)
@@ -163,23 +173,24 @@ namespace MissionPlanner.GCSViews
                     }
                 }
 
-                // waypoints
+                // waypoints: guide line from the path down to a numbered circle on the baseline
                 using (var bold = new Font("Arial", 7.5f, FontStyle.Bold))
+                using (var guide = new Pen(Color.FromArgb(150, 200, 200, 200), 1))
                 {
                     foreach (var w in profile.Waypoints)
                     {
-                        if (double.IsNaN(w.Flight))
-                            continue;
                         var x = X(w.Distance, totalM);
-                        var y = Y(w.Flight * FtPerM, minFt, maxFt);
+                        var baseY = Height - Bottom_;
+                        g.DrawLine(guide, x, Top_, x, baseY);
                         bool sel = w.ItemIndex == SelectedItem;
-                        float r = sel ? 9 : 7;
-                        using (var b = new SolidBrush(sel ? Color.FromArgb(255, 200, 0) :
-                                   w.ItemIndex < 0 ? Color.FromArgb(90, 90, 90) : Color.FromArgb(25, 105, 215)))
-                            g.FillEllipse(b, x - r, y - r, r * 2, r * 2);
-                        g.DrawEllipse(Pens.White, x - r, y - r, r * 2, r * 2);
-                        var sz = g.MeasureString(w.Label, bold);
-                        g.DrawString(w.Label, bold, sel ? Brushes.Black : Brushes.White, x - sz.Width / 2, y - sz.Height / 2);
+                        float r = 8;
+                        using (var b = new SolidBrush(sel ? Color.FromArgb(20, 150, 40) : Color.FromArgb(255, 160, 20)))
+                            g.FillEllipse(b, x - r, baseY - r, r * 2, r * 2);
+                        g.DrawEllipse(Pens.White, x - r, baseY - r, r * 2, r * 2);
+                        var label = w.Command == (ushort) MAVLink.MAV_CMD.TAKEOFF ? "T" :
+                            w.Command == (ushort) MAVLink.MAV_CMD.LAND ? "L" : w.Label;
+                        var sz = g.MeasureString(label, bold);
+                        g.DrawString(label, bold, Brushes.White, x - sz.Width / 2, baseY - sz.Height / 2);
                     }
                 }
 
@@ -192,7 +203,7 @@ namespace MissionPlanner.GCSViews
                     {
                         using (var pen = new Pen(Color.FromArgb(120, 255, 255, 255)) {DashStyle = DashStyle.Dash})
                             g.DrawLine(pen, hoverX, Top_, hoverX, Height - Bottom_);
-                        var s = (p.Distance / MPerMile).ToString("0.00") + " mi   alt " +
+                        var s = (p.Distance * FtPerM).ToString("0") + " ft along   alt " +
                                 (double.IsNaN(p.Flight) ? "?" : (p.Flight * FtPerM).ToString("0")) + " ft   terrain " +
                                 (double.IsNaN(p.Terrain) ? "loading" : (p.Terrain * FtPerM).ToString("0")) + " ft" +
                                 (double.IsNaN(p.Terrain) || double.IsNaN(p.Flight)

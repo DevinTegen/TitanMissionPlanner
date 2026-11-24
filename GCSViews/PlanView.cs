@@ -14,41 +14,52 @@ using System.Windows.Forms;
 namespace MissionPlanner.GCSViews
 {
     /// <summary>
-    /// QGroundControl-style mission planning screen: map with simple numbered markers (click to add,
-    /// drag to move), mission item cards on the right, terrain/altitude profile along the bottom and a
-    /// summary bar on top. Altitudes are shown in feet. It edits the same mission as the classic Flight
-    /// Planner, which still does Upload/Download, files and the advanced tools.
+    /// "QPlan": QGroundControl-style mission planning. Map with orange numbered markers (selected = green),
+    /// left tool strip (Takeoff, Waypoint, ROI, Land, RTL), mission list + item editor on the right,
+    /// terrain/altitude profile along the bottom. Altitudes in feet. Edits the same mission as the classic
+    /// Flight Planner. Loiter radii are never allowed below the plane's minimum turn radius.
     /// </summary>
     public class PlanView : MyUserControl, IActivate, IDeactivate
     {
         static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
 
         const double FtPerM = 3.28084;
-        const double MPerMile = 1609.344;
+
+        static readonly Color Dark = Color.FromArgb(22, 23, 26);
+        static readonly Color Panel1 = Color.FromArgb(30, 32, 36);
+        static readonly Color Panel2 = Color.FromArgb(40, 43, 48);
+        static readonly Color Accent = Color.FromArgb(40, 140, 230);
+        static readonly Color OrangeText = Color.FromArgb(255, 160, 20);
 
         readonly myGMAP map = new myGMAP();
-        readonly FlowLayoutPanel topBar = new FlowLayoutPanel();
-        readonly Panel editor = new Panel();
-        readonly PlanProfileControl profileView = new PlanProfileControl();
+        readonly Panel topBar = new Panel();
+        readonly Panel toolStrip = new Panel();
+        readonly Panel right = new Panel();
+        readonly Panel rightHeader = new Panel();
+        readonly Panel list = new Panel();
+        readonly Panel detail = new Panel();
         readonly Label summary = new Label();
-        readonly Button addButton = new Button();
-        readonly GMapOverlay routeOverlay = new GMapOverlay("planroute");
-        readonly GMapOverlay markerOverlay = new GMapOverlay("planmarkers");
+        readonly Label selectedAlt = new Label();
+        readonly PlanProfileControl profileView = new PlanProfileControl();
+        readonly GMapOverlay routeOverlay = new GMapOverlay("qplanroute");
+        readonly GMapOverlay markerOverlay = new GMapOverlay("qplanmarkers");
         readonly Timer commitTimer = new Timer {Interval = 350};
         readonly Timer profileTimer = new Timer {Interval = 300};
+        readonly Dictionary<string, Button> tools = new Dictionary<string, Button>();
 
         PointLatLngAlt home = new PointLatLngAlt(0, 0, 0, "H");
         List<Locationwp> items = new List<Locationwp>();
-        int selected = -2; // -1 home, -2 nothing
-        bool addMode;
+        int selected = -2; // -1 = mission start (home), -2 = nothing
+        string addTool; // "Waypoint" / "ROI" while click-to-add is active
         bool suppressEvents;
         int profileGeneration;
         int profileRetries;
         MissionProfile lastProfile;
+        string notice = "";
 
         // mouse
-        GMapMarkerPlanItem hoverMarker;
-        int dragIndex = -3; // -3 = not dragging a marker
+        GMapMarker hoverMarker;
+        int dragIndex = -3;
         bool mouseDown;
         bool mouseMoved;
         Point mouseDownStart;
@@ -64,22 +75,23 @@ namespace MissionPlanner.GCSViews
             ("Loiter to altitude", MAVLink.MAV_CMD.LOITER_TO_ALT),
             ("Takeoff", MAVLink.MAV_CMD.TAKEOFF),
             ("Land", MAVLink.MAV_CMD.LAND),
+            ("Region of interest", MAVLink.MAV_CMD.DO_SET_ROI),
             ("Return to launch", MAVLink.MAV_CMD.RETURN_TO_LAUNCH)
         };
 
         static readonly (string name, MAVLink.MAV_FRAME frame)[] frameChoices =
         {
-            ("Above home", MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT),
-            ("Above terrain", MAVLink.MAV_FRAME.GLOBAL_TERRAIN_ALT),
-            ("Above sea level", MAVLink.MAV_FRAME.GLOBAL)
+            ("Rel", MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT),
+            ("Terrain", MAVLink.MAV_FRAME.GLOBAL_TERRAIN_ALT),
+            ("AMSL", MAVLink.MAV_FRAME.GLOBAL)
         };
 
         public PlanView()
         {
-            BackColor = Color.FromArgb(38, 39, 40);
+            BackColor = Dark;
             Dock = DockStyle.Fill;
 
-            // map first so it fills what the bars leave
+            // the map is added first so it fills whatever the docked panels leave
             map.Dock = DockStyle.Fill;
             map.MinZoom = 0;
             map.MaxZoom = 24;
@@ -88,7 +100,7 @@ namespace MissionPlanner.GCSViews
             map.PolygonsEnabled = true;
             map.Overlays.Add(routeOverlay);
             map.Overlays.Add(markerOverlay);
-            map.OnMarkerEnter += m => hoverMarker = m as GMapMarkerPlanItem;
+            map.OnMarkerEnter += m => hoverMarker = m;
             map.OnMarkerLeave += m =>
             {
                 if (hoverMarker == m)
@@ -100,41 +112,18 @@ namespace MissionPlanner.GCSViews
             Controls.Add(map);
 
             profileView.Dock = DockStyle.Bottom;
-            profileView.Height = 160;
+            profileView.Height = 170;
             profileView.ItemClicked += i => SelectItem(i);
             Controls.Add(profileView);
 
-            editor.Dock = DockStyle.Right;
-            editor.Width = 340;
-            editor.AutoScroll = true;
-            editor.BackColor = Color.FromArgb(45, 47, 50);
-            Controls.Add(editor);
+            BuildToolStrip();
+            Controls.Add(toolStrip);
 
-            topBar.Dock = DockStyle.Top;
-            topBar.Height = 46;
-            topBar.WrapContents = false;
-            topBar.Padding = new Padding(4, 6, 4, 4);
-            topBar.BackColor = Color.FromArgb(28, 30, 33);
+            BuildRightPanel();
+            Controls.Add(right);
+
+            BuildTopBar();
             Controls.Add(topBar);
-
-            BarButton(addButton, "+ Waypoint", (s, e) => SetAddMode(!addMode), 92);
-            BarButton(new Button(), "Takeoff", (s, e) => AddTakeoff(), 64);
-            BarButton(new Button(), "Land", (s, e) => AddLand(), 52);
-            BarButton(new Button(), "RTL", (s, e) => AddRtl(), 46);
-            BarButton(new Button(), "Clear", (s, e) => ClearMission(), 52);
-
-            summary.AutoSize = false;
-            summary.Width = 560;
-            summary.Height = 34;
-            summary.ForeColor = Color.Gainsboro;
-            summary.Font = new Font("Arial", 8.5f);
-            summary.TextAlign = ContentAlignment.MiddleLeft;
-            summary.Margin = new Padding(10, 0, 10, 0);
-            topBar.Controls.Add(summary);
-
-            BarButton(new Button(), "Download", (s, e) => Download(), 76);
-            BarButton(new Button(), "Upload", (s, e) => Upload(), 64);
-            BarButton(new Button(), "Classic planner", (s, e) => MainV2.View.ShowScreen("FlightPlanner"), 104);
 
             commitTimer.Tick += (s, e) =>
             {
@@ -148,18 +137,109 @@ namespace MissionPlanner.GCSViews
             };
         }
 
-        void BarButton(Button b, string text, EventHandler click, int width)
+        #region layout
+
+        static Button FlatButton(string text, int w, int h)
         {
-            b.Text = text;
-            b.Width = width;
-            b.Height = 32;
-            b.Margin = new Padding(3, 0, 3, 0);
-            b.FlatStyle = FlatStyle.Flat;
-            b.ForeColor = Color.White;
-            b.BackColor = Color.FromArgb(60, 64, 70);
+            var b = new Button
+            {
+                Text = text, Width = w, Height = h, FlatStyle = FlatStyle.Flat, ForeColor = Color.White,
+                BackColor = Panel2, Font = new Font("Arial", 9.5f)
+            };
+            b.FlatAppearance.BorderColor = Color.FromArgb(70, 74, 80);
+            return b;
+        }
+
+        int barX;
+
+        void BarAdd(string text, int w, EventHandler click, Color? back = null)
+        {
+            var b = FlatButton(text, w, 34);
+            b.Location = new Point(barX, 8);
+            if (back.HasValue)
+                b.BackColor = back.Value;
             b.Click += click;
             topBar.Controls.Add(b);
+            barX += w + 8;
         }
+
+        void BuildTopBar()
+        {
+            topBar.Dock = DockStyle.Top;
+            topBar.Height = 50;
+            topBar.BackColor = Dark;
+            barX = 10;
+            BarAdd("Open", 90, (s, e) => OpenFile());
+            BarAdd("Save", 90, (s, e) => SaveFile(), Accent);
+            BarAdd("Upload", 100, (s, e) => Upload());
+            BarAdd("Download", 100, (s, e) => Download());
+            BarAdd("Clear", 90, (s, e) => ClearMission());
+            BarAdd("Classic planner", 130, (s, e) => MainV2.View.ShowScreen("FlightPlanner"));
+        }
+
+        int toolY;
+
+        void Tool(string name, string glyph, EventHandler click)
+        {
+            var b = FlatButton(glyph + "\n" + name, 80, 64);
+            b.Location = new Point(6, toolY);
+            b.Font = new Font("Arial", 9f);
+            b.Click += click;
+            toolStrip.Controls.Add(b);
+            tools[name] = b;
+            toolY += 70;
+        }
+
+        void BuildToolStrip()
+        {
+            toolStrip.Dock = DockStyle.Left;
+            toolStrip.Width = 92;
+            toolStrip.BackColor = Panel1;
+            toolY = 10;
+            Tool("Takeoff", "⇧", (s, e) => AddTakeoff());
+            Tool("Waypoint", "⌖", (s, e) => SetAddTool(addTool == "Waypoint" ? null : "Waypoint"));
+            Tool("ROI", "◎", (s, e) => SetAddTool(addTool == "ROI" ? null : "ROI"));
+            Tool("Land", "⇩", (s, e) => AddLand());
+            Tool("RTL", "⌂", (s, e) => AddRtl());
+        }
+
+        void BuildRightPanel()
+        {
+            right.Dock = DockStyle.Right;
+            right.Width = 380;
+            right.BackColor = Panel1;
+
+            rightHeader.Dock = DockStyle.Top;
+            rightHeader.Height = 44;
+            rightHeader.BackColor = Dark;
+            summary.Location = new Point(10, 6);
+            summary.Size = new Size(250, 34);
+            summary.ForeColor = OrangeText;
+            summary.Font = new Font("Arial", 9f);
+            rightHeader.Controls.Add(summary);
+            selectedAlt.Location = new Point(266, 10);
+            selectedAlt.Size = new Size(106, 24);
+            selectedAlt.ForeColor = Color.White;
+            selectedAlt.BackColor = Panel2;
+            selectedAlt.TextAlign = ContentAlignment.MiddleCenter;
+            rightHeader.Controls.Add(selectedAlt);
+
+            detail.Dock = DockStyle.Bottom;
+            detail.Height = 360;
+            detail.AutoScroll = true;
+            detail.BackColor = Panel1;
+
+            list.Dock = DockStyle.Fill;
+            list.AutoScroll = true;
+            list.BackColor = Panel1;
+
+            // fill first, then the docked edges
+            right.Controls.Add(list);
+            right.Controls.Add(detail);
+            right.Controls.Add(rightHeader);
+        }
+
+        #endregion
 
         #region activation / sync with the classic planner
 
@@ -180,18 +260,18 @@ namespace MissionPlanner.GCSViews
 
                 LoadFromPlanner();
 
-                if (home.Lat != 0 || home.Lng != 0)
+                if (map.Zoom < 5)
                 {
-                    if (map.Zoom < 5)
+                    if (home.Lat != 0 || home.Lng != 0)
                     {
                         map.Position = home;
                         map.Zoom = 15;
                     }
-                }
-                else if (MainV2.comPort?.MAV?.cs?.Location != null && MainV2.comPort.MAV.cs.Location.Lat != 0)
-                {
-                    map.Position = MainV2.comPort.MAV.cs.Location;
-                    map.Zoom = 15;
+                    else if (MainV2.comPort?.MAV?.cs?.Location != null && MainV2.comPort.MAV.cs.Location.Lat != 0)
+                    {
+                        map.Position = MainV2.comPort.MAV.cs.Location;
+                        map.Zoom = 15;
+                    }
                 }
             }
             catch (Exception ex)
@@ -208,28 +288,27 @@ namespace MissionPlanner.GCSViews
                 CommitNow();
             }
 
-            SetAddMode(false);
+            SetAddTool(null);
         }
 
         void LoadFromPlanner()
         {
             var fp = MainV2.instance?.FlightPlanner;
-            if (fp == null || !fp.TryGetMissionForPlan(out var h, out var list))
+            if (fp == null || !fp.TryGetMissionForPlan(out var h, out var l))
                 return;
             home = h;
-            items = list;
+            items = l;
             if (selected >= items.Count)
                 selected = -2;
-            RefreshAll();
-        }
 
-        void CommitSoon()
-        {
-            commitTimer.Stop();
-            commitTimer.Start();
-            RedrawMap();
-            UpdateSummary();
-            ScheduleProfile();
+            var raised = EnforceMinLoiterRadius();
+            notice = raised > 0
+                ? raised + " loiter" + (raised > 1 ? "s" : "") + " raised to the minimum radius (" +
+                  FtText(MinLoiterRadiusMetres()) + ")"
+                : "";
+            if (raised > 0)
+                CommitNow();
+            RefreshAll();
         }
 
         void CommitNow()
@@ -244,12 +323,13 @@ namespace MissionPlanner.GCSViews
             }
         }
 
+        /// <summary>structural = the list of items changed (rebuild everything); else just values</summary>
         void Changed(bool structural)
         {
             if (structural)
             {
                 commitTimer.Stop();
-                // rebuild after the current event, which may come from a control the rebuild disposes
+                // after the current event: it may come from a control the rebuild disposes
                 Action apply = () =>
                 {
                     CommitNow();
@@ -262,29 +342,145 @@ namespace MissionPlanner.GCSViews
             }
             else
             {
-                CommitSoon();
+                commitTimer.Stop();
+                commitTimer.Start();
+                RedrawMap();
+                RebuildList();
+                UpdateSummary();
+                ScheduleProfile();
             }
         }
 
         void RefreshAll()
         {
             RedrawMap();
-            RebuildEditor();
+            RebuildList();
+            RebuildDetail();
             UpdateSummary();
             ScheduleProfile();
         }
 
         #endregion
 
-        #region top bar actions
+        #region minimum loiter radius
 
-        void SetAddMode(bool on)
+        /// <summary>user override of the plane's minimum loiter radius, metres (0 = work it out)</summary>
+        static double MinLoiterOverride
         {
-            addMode = on;
-            addButton.BackColor = on ? Color.FromArgb(30, 140, 70) : Color.FromArgb(60, 64, 70);
-            addButton.Text = on ? "Adding: click map" : "+ Waypoint";
-            addButton.Width = on ? 128 : 92;
-            map.Cursor = on ? Cursors.Cross : Cursors.Default;
+            get => Settings.Instance.GetDouble("QPlan_MinLoiterRadius", 0);
+            set => Settings.Instance["QPlan_MinLoiterRadius"] =
+                value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        /// <summary>
+        /// Tightest circle the plane can fly: r = v^2 / (g tan(bank)) at cruise airspeed and the roll limit,
+        /// unless the user set their own value. 0 when unknown (not connected, not a plane).
+        /// </summary>
+        public static double MinLoiterRadiusMetres()
+        {
+            if (MinLoiterOverride > 0)
+                return MinLoiterOverride;
+            return AutoMinLoiterRadius(out _);
+        }
+
+        static double AutoMinLoiterRadius(out string how)
+        {
+            how = "";
+            var p = MainV2.comPort?.MAV?.param;
+            if (p == null)
+                return 0;
+            double speed = 0, roll = 0;
+            if (p.ContainsKey("AIRSPEED_CRUISE"))
+                speed = p["AIRSPEED_CRUISE"].Value;
+            else if (p.ContainsKey("TRIM_ARSPD_CM"))
+                speed = p["TRIM_ARSPD_CM"].Value / 100.0;
+            if (p.ContainsKey("ROLL_LIMIT_DEG"))
+                roll = p["ROLL_LIMIT_DEG"].Value;
+            else if (p.ContainsKey("LIM_ROLL_CD"))
+                roll = p["LIM_ROLL_CD"].Value / 100.0;
+            if (speed <= 0 || roll <= 5 || roll >= 89)
+                return 0;
+            how = "cruise " + (speed * 2.23694).ToString("0") + " mph, bank " + roll.ToString("0") + "°";
+            return speed * speed / (9.80665 * Math.Tan(roll * Math.PI / 180));
+        }
+
+        static bool IsLoiter(ushort id) =>
+            id == (ushort) MAVLink.MAV_CMD.LOITER_TURNS || id == (ushort) MAVLink.MAV_CMD.LOITER_TIME ||
+            id == (ushort) MAVLink.MAV_CMD.LOITER_UNLIM || id == (ushort) MAVLink.MAV_CMD.LOITER_TO_ALT;
+
+        static int RadiusParam(ushort id) => id == (ushort) MAVLink.MAV_CMD.LOITER_TO_ALT ? 2 : 3;
+
+        static float GetParam(Locationwp wp, int n) => n == 1 ? wp.p1 : n == 2 ? wp.p2 : n == 3 ? wp.p3 : wp.p4;
+
+        static void PutParam(ref Locationwp wp, int n, float v)
+        {
+            switch (n)
+            {
+                case 1: wp.p1 = v; break;
+                case 2: wp.p2 = v; break;
+                case 3: wp.p3 = v; break;
+                default: wp.p4 = v; break;
+            }
+        }
+
+        static double DefaultLoiterRadius()
+        {
+            var p = MainV2.comPort?.MAV?.param;
+            if (p != null && p.ContainsKey("WP_LOITER_RAD"))
+                return Math.Abs(p["WP_LOITER_RAD"].Value);
+            return 0;
+        }
+
+        /// <summary>radius the vehicle will actually fly, metres</summary>
+        static double LoiterRadius(Locationwp wp)
+        {
+            var r = Math.Abs(GetParam(wp, RadiusParam(wp.id)));
+            return r < 1 ? DefaultLoiterRadius() : r;
+        }
+
+        static bool CounterClockwise(Locationwp wp) =>
+            GetParam(wp, RadiusParam(wp.id)) < 0 ||
+            (Math.Abs(GetParam(wp, RadiusParam(wp.id))) < 1 && DefaultLoiterRadiusIsCcw());
+
+        static bool DefaultLoiterRadiusIsCcw()
+        {
+            var p = MainV2.comPort?.MAV?.param;
+            return p != null && p.ContainsKey("WP_LOITER_RAD") && p["WP_LOITER_RAD"].Value < 0;
+        }
+
+        /// <summary>raise every loiter below the minimum radius to it; returns how many changed</summary>
+        int EnforceMinLoiterRadius()
+        {
+            var min = MinLoiterRadiusMetres();
+            if (min <= 0)
+                return 0;
+            int changed = 0;
+            for (int i = 0; i < items.Count; i++)
+            {
+                var wp = items[i];
+                if (!IsLoiter(wp.id))
+                    continue;
+                if (LoiterRadius(wp) + 0.01 >= min)
+                    continue;
+                bool ccw = CounterClockwise(wp);
+                PutParam(ref wp, RadiusParam(wp.id), (float) (ccw ? -Math.Ceiling(min) : Math.Ceiling(min)));
+                items[i] = wp;
+                changed++;
+            }
+
+            return changed;
+        }
+
+        #endregion
+
+        #region tools
+
+        void SetAddTool(string tool)
+        {
+            addTool = tool;
+            foreach (var kv in tools)
+                kv.Value.BackColor = kv.Key == tool ? Accent : Panel2;
+            map.Cursor = tool != null ? Cursors.Cross : Cursors.Default;
         }
 
         double LastAltitude()
@@ -293,23 +489,36 @@ namespace MissionPlanner.GCSViews
                 if (MissionProfile.IsNavWithLocation(items[i].id) && items[i].id != (ushort) MAVLink.MAV_CMD.LAND &&
                     items[i].id != (ushort) MAVLink.MAV_CMD.VTOL_LAND)
                     return items[i].alt;
-            return MainV2.instance?.FlightPlanner?.DefaultAltitudeMetres ?? 100;
+            return MainV2.instance?.FlightPlanner?.DefaultAltitudeMetres ?? 50;
         }
 
-        void InsertItem(Locationwp wp)
+        void InsertItem(int at, Locationwp wp)
         {
-            int at = selected >= 0 && selected < items.Count - 1 ? selected + 1 : items.Count;
+            at = Math.Max(0, Math.Min(items.Count, at));
             items.Insert(at, wp);
             selected = at;
             Changed(true);
         }
 
-        void AddWaypointAt(PointLatLng p)
+        int InsertPosition() => selected >= 0 && selected < items.Count - 1 ? selected + 1 : items.Count;
+
+        void AddAt(PointLatLng p)
         {
             if (home.Lat == 0 && home.Lng == 0)
                 SetHome(p);
 
-            InsertItem(new Locationwp
+            if (addTool == "ROI")
+            {
+                InsertItem(InsertPosition(), new Locationwp
+                {
+                    id = (ushort) MAVLink.MAV_CMD.DO_SET_ROI, lat = p.Lat, lng = p.Lng, alt = 0,
+                    frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
+                });
+                SetAddTool(null);
+                return;
+            }
+
+            InsertItem(InsertPosition(), new Locationwp
             {
                 id = (ushort) MAVLink.MAV_CMD.WAYPOINT, lat = p.Lat, lng = p.Lng, alt = (float) LastAltitude(),
                 frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
@@ -320,46 +529,39 @@ namespace MissionPlanner.GCSViews
         {
             if (items.Any(a => a.id == (ushort) MAVLink.MAV_CMD.TAKEOFF || a.id == (ushort) MAVLink.MAV_CMD.VTOL_TAKEOFF))
             {
-                CustomMessageBox.Show("The mission already has a takeoff.", "Plan");
+                CustomMessageBox.Show("The mission already has a takeoff.", "QPlan");
                 return;
             }
 
-            items.Insert(0, new Locationwp
+            InsertItem(0, new Locationwp
             {
                 id = (ushort) MAVLink.MAV_CMD.TAKEOFF, p1 = 15, lat = 0, lng = 0,
-                alt = (float) (MainV2.instance?.FlightPlanner?.DefaultAltitudeMetres ?? 100),
+                alt = (float) (MainV2.instance?.FlightPlanner?.DefaultAltitudeMetres ?? 50),
                 frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
             });
-            selected = 0;
-            Changed(true);
         }
 
         void AddLand()
         {
             if (home.Lat == 0 && home.Lng == 0)
             {
-                CustomMessageBox.Show("Set a home position first (right-click the map).", "Plan");
+                CustomMessageBox.Show("Set home first (right-click the map).", "QPlan");
                 return;
             }
 
-            items.Add(new Locationwp
+            InsertItem(items.Count, new Locationwp
             {
                 id = (ushort) MAVLink.MAV_CMD.LAND, lat = home.Lat, lng = home.Lng, alt = 0,
                 frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
             });
-            selected = items.Count - 1;
-            Changed(true);
         }
 
         void AddRtl()
         {
-            items.Add(new Locationwp
+            InsertItem(items.Count, new Locationwp
             {
-                id = (ushort) MAVLink.MAV_CMD.RETURN_TO_LAUNCH,
-                frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
+                id = (ushort) MAVLink.MAV_CMD.RETURN_TO_LAUNCH, frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
             });
-            selected = items.Count - 1;
-            Changed(true);
         }
 
         void ClearMission()
@@ -367,7 +569,7 @@ namespace MissionPlanner.GCSViews
             if (items.Count == 0)
                 return;
             if ((int) DialogResult.Yes !=
-                CustomMessageBox.Show("Remove all mission items?", "Plan", MessageBoxButtons.YesNo))
+                CustomMessageBox.Show("Remove all mission items?", "QPlan", MessageBoxButtons.YesNo))
                 return;
             items.Clear();
             selected = -2;
@@ -403,63 +605,117 @@ namespace MissionPlanner.GCSViews
             LoadFromPlanner();
         }
 
+        void OpenFile()
+        {
+            try
+            {
+                MainV2.instance.FlightPlanner.BUT_loadwpfile_Click(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                CustomMessageBox.Show("Open failed: " + ex.Message, Strings.ERROR);
+            }
+
+            selected = -2;
+            LoadFromPlanner();
+        }
+
+        void SaveFile()
+        {
+            commitTimer.Stop();
+            CommitNow();
+            try
+            {
+                MainV2.instance.FlightPlanner.BUT_saveWPFile_Click(this, EventArgs.Empty);
+            }
+            catch (Exception ex)
+            {
+                CustomMessageBox.Show("Save failed: " + ex.Message, Strings.ERROR);
+            }
+        }
+
         void SetHome(PointLatLng p)
         {
             var t = MissionProfile.TerrainAt(p.Lat, p.Lng);
             home = new PointLatLngAlt(p.Lat, p.Lng, double.IsNaN(t) ? home.Alt : t, "H");
         }
 
+        void DeleteItem(int index)
+        {
+            if (index < 0 || index >= items.Count)
+                return;
+            items.RemoveAt(index);
+            selected = items.Count == 0 ? -2 : Math.Min(index, items.Count - 1);
+            Changed(true);
+        }
+
+        void MoveItem(int index, int delta)
+        {
+            int to = index + delta;
+            if (index < 0 || to < 0 || to >= items.Count)
+                return;
+            var wp = items[index];
+            items.RemoveAt(index);
+            items.Insert(to, wp);
+            selected = to;
+            Changed(true);
+        }
+
         #endregion
 
         #region map
 
-        static bool IsLoiter(ushort id) =>
-            id == (ushort) MAVLink.MAV_CMD.LOITER_TURNS || id == (ushort) MAVLink.MAV_CMD.LOITER_TIME ||
-            id == (ushort) MAVLink.MAV_CMD.LOITER_UNLIM || id == (ushort) MAVLink.MAV_CMD.LOITER_TO_ALT;
+        static string FtText(double metres) => (metres * FtPerM).ToString("0") + " ft";
 
-        double LoiterRadius(Locationwp wp)
+        static string MarkerText(Locationwp wp)
         {
-            double r = wp.id == (ushort) MAVLink.MAV_CMD.LOITER_TO_ALT ? wp.p2 : wp.p3;
-            r = Math.Abs(r);
-            if (r < 1)
-            {
-                var p = MainV2.comPort?.MAV?.param;
-                if (p != null && p.ContainsKey("WP_LOITER_RAD"))
-                    r = Math.Abs(p["WP_LOITER_RAD"].Value);
-            }
-
-            return r;
-        }
-
-        static string AltLabel(Locationwp wp)
-        {
-            var s = (wp.alt * FtPerM).ToString("0") + " ft";
+            if (wp.id == (ushort) MAVLink.MAV_CMD.DO_SET_ROI)
+                return "ROI";
+            var s = FtText(wp.alt);
             if (MissionProfile.IsTerrainFrame(wp.frame))
                 s += " AGL";
             else if (MissionProfile.IsAbsoluteFrame(wp.frame))
                 s += " MSL";
             if (IsLoiter(wp.id))
-                s = "Loiter " + s;
+            {
+                var r = LoiterRadius(wp);
+                s = "Loiter " + s + (r > 0 ? " · r " + FtText(r) : "");
+            }
+
             return s;
+        }
+
+        static string MarkerLabel(int i, Locationwp wp)
+        {
+            switch ((MAVLink.MAV_CMD) wp.id)
+            {
+                case MAVLink.MAV_CMD.TAKEOFF:
+                case MAVLink.MAV_CMD.VTOL_TAKEOFF:
+                    return "T";
+                case MAVLink.MAV_CMD.LAND:
+                case MAVLink.MAV_CMD.VTOL_LAND:
+                    return "L";
+                case MAVLink.MAV_CMD.DO_SET_ROI:
+                    return "R";
+                default:
+                    return (i + 1).ToString();
+            }
         }
 
         void RedrawMap()
         {
             routeOverlay.Routes.Clear();
+            foreach (var m in markerOverlay.Markers.ToList())
+                m.Dispose();
             markerOverlay.Markers.Clear();
 
-            var path = new List<PointLatLng>();
-            if (home.Lat != 0 || home.Lng != 0)
-            {
-                path.Add(home);
-                markerOverlay.Markers.Add(new GMapMarkerPlanItem(home)
-                {
-                    ItemIndex = -1, Label = "H", Selected = selected == -1,
-                    AltText = (home.Alt * FtPerM).ToString("0") + " ft MSL"
-                });
-            }
+            var path = new List<(PointLatLng p, int index)>();
+            bool hasHome = home.Lat != 0 || home.Lng != 0;
+            if (hasHome)
+                path.Add((home, -1));
 
             bool endsWithRtl = false;
+            var itemMarkers = new List<GMapMarker>();
             for (int i = 0; i < items.Count; i++)
             {
                 var wp = items[i];
@@ -469,35 +725,62 @@ namespace MissionPlanner.GCSViews
                     continue;
                 }
 
-                if (!MissionProfile.IsNavWithLocation(wp.id))
+                bool roi = wp.id == (ushort) MAVLink.MAV_CMD.DO_SET_ROI;
+                if (!roi && !MissionProfile.IsNavWithLocation(wp.id))
                     continue;
-                endsWithRtl = false;
                 if (wp.lat == 0 && wp.lng == 0)
                     continue; // takeoff/land in place
 
                 var p = new PointLatLng(wp.lat, wp.lng);
-                path.Add(p);
-                markerOverlay.Markers.Add(new GMapMarkerPlanItem(p)
+                if (!roi)
                 {
-                    ItemIndex = i,
-                    Label = wp.id == (ushort) MAVLink.MAV_CMD.TAKEOFF ? "T" :
-                        wp.id == (ushort) MAVLink.MAV_CMD.LAND ? "L" : (i + 1).ToString(),
-                    Command = wp.id,
-                    Selected = selected == i,
-                    AltText = AltLabel(wp),
-                    LoiterRadiusMetres = IsLoiter(wp.id) ? LoiterRadius(wp) : 0
+                    path.Add((p, i));
+                    endsWithRtl = false;
+                }
+
+                itemMarkers.Add(new GMapMarkerPlanItem(p)
+                {
+                    ItemIndex = i, Label = MarkerLabel(i, wp), Command = wp.id, Selected = selected == i,
+                    AltText = MarkerText(wp),
+                    LoiterRadiusMetres = IsLoiter(wp.id) ? LoiterRadius(wp) : 0,
+                    LoiterCounterClockwise = IsLoiter(wp.id) && CounterClockwise(wp)
                 });
             }
 
             if (path.Count >= 2)
-                routeOverlay.Routes.Add(new GMapRoute(path, "plan")
-                    {Stroke = new Pen(Color.FromArgb(230, 255, 160, 30), 3)});
+            {
+                routeOverlay.Routes.Add(new GMapRoute(path.Select(a => a.p).ToList(), "qplan")
+                    {Stroke = new Pen(GMapMarkerPlanItem.Orange, 3)});
+                for (int i = 1; i < path.Count; i++)
+                    markerOverlay.Markers.Add(new GMapMarkerLegArrow(path[i - 1].p, path[i].p));
+
+                // "+" handle on the leg into the selected item, to insert a waypoint before it
+                var k = path.FindIndex(a => a.index == selected);
+                if (k > 0)
+                {
+                    var a = path[k - 1].p;
+                    var b = path[k].p;
+                    markerOverlay.Markers.Add(new GMapMarkerInsertHandle(
+                        new PointLatLng((a.Lat + b.Lat) / 2, (a.Lng + b.Lng) / 2), selected));
+                }
+            }
 
             if (endsWithRtl && path.Count >= 2)
-                routeOverlay.Routes.Add(new GMapRoute(new List<PointLatLng> {path[path.Count - 1], path[0]}, "rtl")
+                routeOverlay.Routes.Add(new GMapRoute(
+                    new List<PointLatLng> {path[path.Count - 1].p, path[0].p}, "qplanrtl")
                 {
-                    Stroke = new Pen(Color.FromArgb(200, 200, 200, 200), 2)
+                    Stroke = new Pen(Color.FromArgb(200, 255, 160, 20), 2)
                         {DashStyle = System.Drawing.Drawing2D.DashStyle.Dash}
+                });
+
+            foreach (var m in itemMarkers)
+                markerOverlay.Markers.Add(m);
+
+            if (hasHome)
+                markerOverlay.Markers.Add(new GMapMarkerPlanItem(home)
+                {
+                    ItemIndex = -1, Label = "H", Selected = selected == -1,
+                    AltText = FtText(home.Alt) + " MSL"
                 });
 
             map.Invalidate();
@@ -505,18 +788,20 @@ namespace MissionPlanner.GCSViews
 
         void Map_MouseDown(object sender, MouseEventArgs e)
         {
-            if (e.Button != MouseButtons.Left)
+            if (e.Button == MouseButtons.Right)
             {
-                if (e.Button == MouseButtons.Right)
-                    ShowMapMenu(e.Location);
+                ShowMapMenu(e.Location);
                 return;
             }
+
+            if (e.Button != MouseButtons.Left)
+                return;
 
             mouseDown = true;
             mouseMoved = false;
             mouseDownStart = e.Location;
             lastMouse = e.Location;
-            dragIndex = hoverMarker != null ? hoverMarker.ItemIndex : -3;
+            dragIndex = hoverMarker is GMapMarkerPlanItem pi ? pi.ItemIndex : -3;
             if (dragIndex != -3)
                 map.CanDragMap = false;
         }
@@ -531,7 +816,6 @@ namespace MissionPlanner.GCSViews
 
             if (dragIndex != -3)
             {
-                // drag a marker
                 var p = map.FromLocalToLatLng(e.X, e.Y);
                 if (dragIndex == -1)
                 {
@@ -574,8 +858,9 @@ namespace MissionPlanner.GCSViews
                 {
                     if (index == -1)
                         SetHome(home);
-                    SelectItem(index, false);
+                    selected = index;
                     Changed(false);
+                    RebuildDetail();
                 }
                 else
                 {
@@ -585,23 +870,49 @@ namespace MissionPlanner.GCSViews
                 return;
             }
 
-            if (!mouseMoved && addMode)
-                AddWaypointAt(map.FromLocalToLatLng(e.X, e.Y));
+            if (!mouseMoved && hoverMarker is GMapMarkerInsertHandle handle)
+            {
+                // insert a waypoint halfway along the leg into the selected item
+                var prevAlt = LastAltitudeBefore(handle.InsertAt);
+                InsertItem(handle.InsertAt, new Locationwp
+                {
+                    id = (ushort) MAVLink.MAV_CMD.WAYPOINT, lat = handle.Position.Lat, lng = handle.Position.Lng,
+                    alt = (float) prevAlt, frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
+                });
+                return;
+            }
+
+            if (!mouseMoved && addTool != null)
+                AddAt(map.FromLocalToLatLng(e.X, e.Y));
+        }
+
+        double LastAltitudeBefore(int index)
+        {
+            for (int i = Math.Min(index, items.Count) - 1; i >= 0; i--)
+                if (MissionProfile.IsNavWithLocation(items[i].id) && items[i].alt > 0)
+                    return items[i].alt;
+            return LastAltitude();
         }
 
         void ShowMapMenu(Point at)
         {
             var p = map.FromLocalToLatLng(at.X, at.Y);
             var menu = new ContextMenuStrip();
-            menu.Items.Add("Add waypoint here", null, (s, e) => AddWaypointAt(p));
+            menu.Items.Add("Add waypoint here", null, (s, e) =>
+            {
+                var t = addTool;
+                addTool = "Waypoint";
+                AddAt(p);
+                addTool = t;
+            });
             menu.Items.Add("Set home here", null, (s, e) =>
             {
                 SetHome(p);
                 Changed(true);
             });
-            if (hoverMarker != null && hoverMarker.ItemIndex >= 0)
+            if (hoverMarker is GMapMarkerPlanItem pi && pi.ItemIndex >= 0)
             {
-                var idx = hoverMarker.ItemIndex;
+                var idx = pi.ItemIndex;
                 menu.Items.Add("Delete item " + (idx + 1), null, (s, e) => DeleteItem(idx));
             }
 
@@ -610,48 +921,24 @@ namespace MissionPlanner.GCSViews
 
         #endregion
 
-        #region editor cards
+        #region mission list (right panel)
 
-        void SelectItem(int index, bool rebuild = true)
+        void SelectItem(int index)
         {
             selected = index;
             profileView.SelectedItem = index;
             profileView.Invalidate();
             RedrawMap();
+            RebuildList();
+            RebuildDetail();
             UpdateSummary();
-            if (rebuild)
-                RebuildEditor();
 
-            // keep the selected marker on screen
             if (index >= 0 && index < items.Count && (items[index].lat != 0 || items[index].lng != 0))
             {
                 var p = new PointLatLng(items[index].lat, items[index].lng);
                 if (!map.ViewArea.Contains(p))
                     map.Position = p;
             }
-        }
-
-        void DeleteItem(int index)
-        {
-            if (index < 0 || index >= items.Count)
-                return;
-            items.RemoveAt(index);
-            selected = Math.Min(index, items.Count - 1);
-            if (items.Count == 0)
-                selected = -2;
-            Changed(true);
-        }
-
-        void MoveItem(int index, int delta)
-        {
-            int to = index + delta;
-            if (index < 0 || to < 0 || to >= items.Count)
-                return;
-            var wp = items[index];
-            items.RemoveAt(index);
-            items.Insert(to, wp);
-            selected = to;
-            Changed(true);
         }
 
         static string CommandName(ushort id)
@@ -662,108 +949,135 @@ namespace MissionPlanner.GCSViews
             return Enum.IsDefined(typeof(MAVLink.MAV_CMD), (int) id) ? ((MAVLink.MAV_CMD) id).ToString() : "CMD " + id;
         }
 
-        void RebuildEditor()
+        void RebuildList()
         {
-            editor.SuspendLayout();
-            var scroll = editor.VerticalScroll.Value;
-            foreach (Control c in editor.Controls.Cast<Control>().ToList())
+            list.SuspendLayout();
+            var scroll = list.VerticalScroll.Value;
+            foreach (Control c in list.Controls.Cast<Control>().ToList())
             {
-                editor.Controls.Remove(c);
+                list.Controls.Remove(c);
                 c.Dispose();
             }
 
-            int y = 6;
-            int w = editor.ClientSize.Width - 12;
-            if (w < 200)
-                w = 300;
-
-            y = AddHeader(-1, "Mission start (home)", (home.Alt * FtPerM).ToString("0") + " ft MSL", y, w);
-            if (selected == -1)
-                y = AddHomeDetails(y, w);
-
+            int w = Math.Max(240, list.ClientSize.Width - 8);
+            int y = 4;
+            y = AddRow(-1, "H", "Mission Start", FtText(home.Alt) + " MSL", y, w);
             for (int i = 0; i < items.Count; i++)
             {
                 var wp = items[i];
-                string right = MissionProfile.IsNavWithLocation(wp.id) ? AltLabel(wp) : "";
-                y = AddHeader(i, (i + 1) + "  " + CommandName(wp.id), right, y, w);
-                if (selected == i)
-                    y = AddItemDetails(i, y, w);
+                string rightText = "";
+                if (wp.id == (ushort) MAVLink.MAV_CMD.DO_SET_ROI)
+                    rightText = "";
+                else if (MissionProfile.IsNavWithLocation(wp.id))
+                {
+                    rightText = FtText(wp.alt);
+                    if (IsLoiter(wp.id) && LoiterRadius(wp) > 0)
+                        rightText += " · r " + FtText(LoiterRadius(wp));
+                }
+
+                y = AddRow(i, (i + 1).ToString(), CommandName(wp.id), rightText, y, w);
             }
 
-            var hint = new Label
-            {
-                Text = items.Count == 0
-                    ? "Press '+ Waypoint' and click the map to add waypoints. Right-click the map to set home."
-                    : "Click a card or a marker to edit it. Drag markers to move them.",
-                ForeColor = Color.Silver, Location = new Point(8, y + 6), Size = new Size(w - 4, 40)
-            };
-            editor.Controls.Add(hint);
-
-            editor.ResumeLayout();
+            list.ResumeLayout();
             try
             {
-                editor.VerticalScroll.Value = Math.Min(scroll, editor.VerticalScroll.Maximum);
+                list.VerticalScroll.Value = Math.Min(scroll, list.VerticalScroll.Maximum);
             }
             catch
             {
             }
         }
 
-        int AddHeader(int index, string text, string right, int y, int w)
+        int AddRow(int index, string number, string name, string rightText, int y, int w)
         {
             bool sel = selected == index;
-            var header = new Panel
+            var row = new Panel
             {
-                Location = new Point(6, y), Size = new Size(w, 30),
-                BackColor = sel ? Color.FromArgb(25, 105, 215) : Color.FromArgb(62, 65, 70),
-                Cursor = Cursors.Hand
+                Location = new Point(4, y), Size = new Size(w, 40),
+                BackColor = sel ? Color.FromArgb(26, 50, 80) : Panel1, Cursor = Cursors.Hand
             };
-            var left = new Label
+            var circle = new NumberCircle {Text = number, Selected = sel, Location = new Point(6, 5), Size = new Size(30, 30)};
+            var nameLabel = new Label
             {
-                Text = text, ForeColor = Color.White, Font = new Font("Arial", 9.5f, FontStyle.Bold),
-                Location = new Point(8, 7), AutoSize = true
+                Text = name, ForeColor = Color.White, Font = new Font("Arial", 11f), Location = new Point(44, 10),
+                AutoSize = true
             };
             var r = new Label
             {
-                Text = right, ForeColor = Color.White, Font = new Font("Arial", 8.5f),
-                AutoSize = false, Size = new Size(140, 18), Location = new Point(w - 146, 8),
-                TextAlign = ContentAlignment.MiddleRight
+                Text = rightText, ForeColor = Color.Silver, Font = new Font("Arial", 8.5f), AutoSize = false,
+                Size = new Size(150, 20), Location = new Point(w - 156, 12), TextAlign = ContentAlignment.MiddleRight
             };
-            header.Controls.Add(left);
-            header.Controls.Add(r);
-            EventHandler click = (s, e) => SelectItem(selected == index ? -2 : index);
-            header.Click += click;
-            left.Click += click;
+            row.Controls.Add(circle);
+            row.Controls.Add(nameLabel);
+            row.Controls.Add(r);
+            EventHandler click = (s, e) => SelectItem(index);
+            row.Click += click;
+            circle.Click += click;
+            nameLabel.Click += click;
             r.Click += click;
-            editor.Controls.Add(header);
-            return y + 33;
+            if (sel)
+                row.Paint += (s, e) =>
+                {
+                    using (var pen = new Pen(Accent, 2))
+                        e.Graphics.DrawRectangle(pen, 1, 1, row.Width - 3, row.Height - 3);
+                };
+            list.Controls.Add(row);
+            return y + 42;
         }
 
-        Panel DetailPanel(int y, int w, int h)
+        /// <summary>numbered circle used in the mission list</summary>
+        class NumberCircle : Control
         {
-            var p = new Panel
+            public bool Selected;
+
+            public NumberCircle()
             {
-                Location = new Point(6, y), Size = new Size(w, h), BackColor = Color.FromArgb(52, 55, 60)
-            };
-            editor.Controls.Add(p);
-            return p;
+                SetStyle(ControlStyles.UserPaint | ControlStyles.AllPaintingInWmPaint | ControlStyles.OptimizedDoubleBuffer,
+                    true);
+            }
+
+            protected override void OnPaint(PaintEventArgs e)
+            {
+                var g = e.Graphics;
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                g.Clear(Parent?.BackColor ?? Panel1);
+                var rect = new Rectangle(1, 1, Width - 3, Height - 3);
+                if (Selected)
+                    using (var b = new SolidBrush(Accent))
+                        g.FillEllipse(b, rect);
+                using (var pen = new Pen(Color.White, 1.5f))
+                    g.DrawEllipse(pen, rect);
+                using (var f = new Font("Arial", 8.5f, FontStyle.Bold))
+                {
+                    var sz = g.MeasureString(Text, f);
+                    g.DrawString(Text, f, Brushes.White, Width / 2f - sz.Width / 2, Height / 2f - sz.Height / 2);
+                }
+            }
         }
 
-        static Label FieldLabel(Panel p, string text, int y)
+        #endregion
+
+        #region item editor (right panel, bottom)
+
+        Label FieldLabel(string text, int y)
         {
-            var l = new Label {Text = text, ForeColor = Color.Gainsboro, Location = new Point(8, y + 3), AutoSize = true};
-            p.Controls.Add(l);
+            var l = new Label
+            {
+                Text = text, ForeColor = Color.Gainsboro, Font = new Font("Arial", 10f), Location = new Point(12, y + 4),
+                AutoSize = true
+            };
+            detail.Controls.Add(l);
             return l;
         }
 
-        NumericUpDown Number(Panel p, int y, double value, double min, double max, int decimals,
-            Action<double> changed)
+        NumericUpDown Number(int y, double value, double min, double max, int decimals, Action<double> changed,
+            int x = 190)
         {
             var n = new NumericUpDown
             {
-                Location = new Point(140, y), Width = p.Width - 150, DecimalPlaces = decimals,
-                Minimum = (decimal) min, Maximum = (decimal) max,
-                Increment = decimals > 0 ? 1 : 10
+                Location = new Point(x, y), Width = detail.ClientSize.Width - x - 14, DecimalPlaces = decimals,
+                Minimum = (decimal) min, Maximum = (decimal) max, Increment = decimals > 0 ? 1 : 10,
+                Font = new Font("Arial", 10f)
             };
             suppressEvents = true;
             n.Value = (decimal) Math.Max(min, Math.Min(max, value));
@@ -773,48 +1087,135 @@ namespace MissionPlanner.GCSViews
                 if (!suppressEvents)
                     changed((double) n.Value);
             };
-            p.Controls.Add(n);
+            detail.Controls.Add(n);
             return n;
         }
 
-        int AddHomeDetails(int y, int w)
+        void RebuildDetail()
         {
-            var p = DetailPanel(y, w, 96);
-            FieldLabel(p, "Latitude", 6);
-            FieldLabel(p, "Longitude", 34);
-            FieldLabel(p, "Altitude (ft MSL)", 62);
-            Number(p, 4, home.Lat, -90, 90, 7, v =>
+            detail.SuspendLayout();
+            foreach (Control c in detail.Controls.Cast<Control>().ToList())
             {
-                home = new PointLatLngAlt(v, home.Lng, home.Alt, "H");
-                Changed(false);
-            });
-            Number(p, 32, home.Lng, -180, 180, 7, v =>
+                detail.Controls.Remove(c);
+                c.Dispose();
+            }
+
+            if (selected == -1)
+                BuildMissionStartDetail();
+            else if (selected >= 0 && selected < items.Count)
+                BuildItemDetail(selected);
+            else
             {
-                home = new PointLatLngAlt(home.Lat, v, home.Alt, "H");
-                Changed(false);
-            });
-            Number(p, 60, home.Alt * FtPerM, -2000, 30000, 0, v =>
+                var hint = new Label
+                {
+                    Text = "Select a mission item to edit it.\n\nUse Waypoint on the left, then click the map to add " +
+                           "waypoints. Drag markers to move them; click the + on a leg to insert one. Right-click " +
+                           "the map to set home.",
+                    ForeColor = Color.Silver, Font = new Font("Arial", 9.5f), Location = new Point(12, 12),
+                    Size = new Size(detail.ClientSize.Width - 24, 140)
+                };
+                detail.Controls.Add(hint);
+            }
+
+            detail.ResumeLayout();
+        }
+
+        int DetailHeader(string number, string title, int index)
+        {
+            var num = new Label
+            {
+                Text = number, ForeColor = Color.Silver, Font = new Font("Arial", 11f), Location = new Point(12, 12),
+                AutoSize = true
+            };
+            detail.Controls.Add(num);
+            if (index >= 0)
+            {
+                var del = FlatButton("Delete", 70, 28);
+                del.BackColor = Color.FromArgb(120, 35, 30);
+                del.Location = new Point(detail.ClientSize.Width - 84, 8);
+                del.Click += (s, e) => DeleteItem(index);
+                detail.Controls.Add(del);
+                var up = FlatButton("▲", 32, 28);
+                up.Location = new Point(detail.ClientSize.Width - 160, 8);
+                up.Click += (s, e) => MoveItem(index, -1);
+                detail.Controls.Add(up);
+                var down = FlatButton("▼", 32, 28);
+                down.Location = new Point(detail.ClientSize.Width - 124, 8);
+                down.Click += (s, e) => MoveItem(index, 1);
+                detail.Controls.Add(down);
+            }
+
+            var t = new Label
+            {
+                Text = title.ToUpperInvariant(), ForeColor = Color.White, Font = new Font("Arial", 12f, FontStyle.Bold),
+                Location = new Point(12, 48), AutoSize = true
+            };
+            detail.Controls.Add(t);
+            return 48;
+        }
+
+        void BuildMissionStartDetail()
+        {
+            int y = DetailHeader("Home", "Mission start", -1);
+            y += 40;
+            FieldLabel("Home altitude (ft MSL)", y);
+            Number(y, home.Alt * FtPerM, -2000, 30000, 0, v =>
             {
                 home = new PointLatLngAlt(home.Lat, home.Lng, v / FtPerM, "H");
                 Changed(false);
             });
-            return y + p.Height + 6;
+            y += 34;
+            FieldLabel("Latitude", y);
+            Number(y, home.Lat, -90, 90, 7, v =>
+            {
+                home = new PointLatLngAlt(v, home.Lng, home.Alt, "H");
+                Changed(false);
+            });
+            y += 34;
+            FieldLabel("Longitude", y);
+            Number(y, home.Lng, -180, 180, 7, v =>
+            {
+                home = new PointLatLngAlt(home.Lat, v, home.Alt, "H");
+                Changed(false);
+            });
+            y += 44;
+
+            // plane minimum loiter radius
+            var auto = AutoMinLoiterRadius(out var how);
+            FieldLabel("Min loiter radius (ft)", y);
+            Number(y, MinLoiterOverride * FtPerM, 0, 30000, 0, v =>
+            {
+                MinLoiterOverride = v / FtPerM;
+                var raised = EnforceMinLoiterRadius();
+                notice = raised > 0 ? raised + " loiter(s) raised to " + FtText(MinLoiterRadiusMetres()) : "";
+                Changed(raised > 0);
+            });
+            y += 32;
+            var note = new Label
+            {
+                Text = "0 = work it out from the plane: " +
+                       (auto > 0 ? FtText(auto) + " (" + how + ")" : "connect to the plane to calculate it") +
+                       ".\nLoiters are never planned tighter than this.",
+                ForeColor = Color.Silver, Font = new Font("Arial", 8.5f), Location = new Point(12, y),
+                Size = new Size(detail.ClientSize.Width - 24, 46)
+            };
+            detail.Controls.Add(note);
         }
 
-        int AddItemDetails(int index, int y, int w)
+        void BuildItemDetail(int index)
         {
             var wp = items[index];
             var cmd = (MAVLink.MAV_CMD) wp.id;
             bool known = commandChoices.Any(c => c.cmd == cmd);
-            bool hasLocation = MissionProfile.IsNavWithLocation(wp.id);
-            var p = DetailPanel(y, w, 10);
-            int row = 6;
+            bool hasAlt = MissionProfile.IsNavWithLocation(wp.id);
 
-            // command
-            FieldLabel(p, "Command", row);
+            int y = DetailHeader("#" + (index + 1), CommandName(wp.id), index);
+
+            // "Change..." command
             var cmdBox = new ComboBox
             {
-                Location = new Point(140, row), Width = w - 150, DropDownStyle = ComboBoxStyle.DropDownList
+                Location = new Point(detail.ClientSize.Width - 170, y - 2), Width = 156,
+                DropDownStyle = ComboBoxStyle.DropDownList, Font = new Font("Arial", 9.5f)
             };
             foreach (var c in commandChoices)
                 cmdBox.Items.Add(c.name);
@@ -824,191 +1225,191 @@ namespace MissionPlanner.GCSViews
             cmdBox.SelectedIndexChanged += (s, e) =>
             {
                 var choice = commandChoices.FirstOrDefault(c => c.name == (string) cmdBox.SelectedItem);
-                if (choice.name == null)
+                if (choice.name == null || choice.cmd == (MAVLink.MAV_CMD) items[index].id)
                     return;
                 var item = items[index];
                 ConvertCommand(ref item, choice.cmd);
                 items[index] = item;
+                EnforceMinLoiterRadius();
                 Changed(true);
             };
-            p.Controls.Add(cmdBox);
-            row += 30;
+            detail.Controls.Add(cmdBox);
+            y += 40;
 
             if (!known)
             {
                 var note = new Label
                 {
                     Text = "Edit this command's parameters in the classic planner.", ForeColor = Color.Silver,
-                    Location = new Point(8, row), Size = new Size(w - 16, 30)
+                    Location = new Point(12, y), Size = new Size(detail.ClientSize.Width - 24, 30)
                 };
-                p.Controls.Add(note);
-                row += 32;
+                detail.Controls.Add(note);
+                return;
             }
 
-            if (hasLocation && known)
+            if (hasAlt)
             {
-                FieldLabel(p, "Altitude (ft)", row);
-                Number(p, row, wp.alt * FtPerM, -2000, 30000, 0, v =>
+                // altitude with frame, number box and a 0-400 ft slider like QGC
+                var frameBox = new ComboBox
+                {
+                    Location = new Point(12, y), Width = 96, DropDownStyle = ComboBoxStyle.DropDownList,
+                    Font = new Font("Arial", 9.5f)
+                };
+                foreach (var f in frameChoices)
+                    frameBox.Items.Add("Alt (" + f.name + ")");
+                var cur = MissionProfile.IsTerrainFrame(wp.frame) ? 1 : MissionProfile.IsAbsoluteFrame(wp.frame) ? 2 : 0;
+                frameBox.SelectedIndex = cur;
+                frameBox.SelectedIndexChanged += (s, e) =>
+                {
+                    var item = items[index];
+                    item.frame = (byte) frameChoices[frameBox.SelectedIndex].frame;
+                    items[index] = item;
+                    Changed(true);
+                };
+                detail.Controls.Add(frameBox);
+
+                var altFt = wp.alt * FtPerM;
+                var slider = new TrackBar
+                {
+                    Location = new Point(12, y + 32), Width = detail.ClientSize.Width - 24, Minimum = 0,
+                    Maximum = (int) Math.Max(400, Math.Ceiling(altFt / 100) * 100), TickFrequency = 50,
+                    SmallChange = 5, LargeChange = 50
+                };
+                var altBox = Number(y, altFt, -2000, 30000, 1, v =>
                 {
                     var item = items[index];
                     item.alt = (float) (v / FtPerM);
                     items[index] = item;
+                    suppressEvents = true;
+                    if (v >= slider.Minimum && v <= slider.Maximum)
+                        slider.Value = (int) v;
+                    suppressEvents = false;
                     Changed(false);
-                });
-                row += 28;
-
-                FieldLabel(p, "Altitude is", row);
-                var frameBox = new ComboBox
+                }, 116);
+                slider.Value = (int) Math.Max(0, Math.Min(slider.Maximum, altFt));
+                slider.ValueChanged += (s, e) =>
                 {
-                    Location = new Point(140, row), Width = w - 150, DropDownStyle = ComboBoxStyle.DropDownList
+                    if (suppressEvents)
+                        return;
+                    altBox.Value = slider.Value;
                 };
-                foreach (var f in frameChoices)
-                    frameBox.Items.Add(f.name);
-                var current = frameChoices.FirstOrDefault(f => (byte) f.frame == wp.frame ||
-                                                               (MissionProfile.IsTerrainFrame(wp.frame) &&
-                                                                f.frame == MAVLink.MAV_FRAME.GLOBAL_TERRAIN_ALT) ||
-                                                               (MissionProfile.IsAbsoluteFrame(wp.frame) &&
-                                                                f.frame == MAVLink.MAV_FRAME.GLOBAL));
-                frameBox.SelectedItem = current.name ?? frameChoices[0].name;
-                frameBox.SelectedIndexChanged += (s, e) =>
-                {
-                    var f = frameChoices.First(a => a.name == (string) frameBox.SelectedItem);
-                    var item = items[index];
-                    item.frame = (byte) f.frame;
-                    items[index] = item;
-                    Changed(true);
-                };
-                p.Controls.Add(frameBox);
-                row += 30;
-
-                // command specific
-                switch (cmd)
-                {
-                    case MAVLink.MAV_CMD.WAYPOINT:
-                    case MAVLink.MAV_CMD.SPLINE_WAYPOINT:
-                        FieldLabel(p, "Hold (s)", row);
-                        Number(p, row, wp.p1, 0, 3600, 0, v => SetParam(index, 1, v));
-                        row += 28;
-                        break;
-                    case MAVLink.MAV_CMD.LOITER_TURNS:
-                        FieldLabel(p, "Turns", row);
-                        Number(p, row, wp.p1, 0, 255, 0, v => SetParam(index, 1, v));
-                        row += 28;
-                        row = LoiterRadiusFields(p, index, wp.p3, 3, row, w);
-                        break;
-                    case MAVLink.MAV_CMD.LOITER_TIME:
-                        FieldLabel(p, "Time (s)", row);
-                        Number(p, row, wp.p1, 0, 36000, 0, v => SetParam(index, 1, v));
-                        row += 28;
-                        row = LoiterRadiusFields(p, index, wp.p3, 3, row, w);
-                        break;
-                    case MAVLink.MAV_CMD.LOITER_UNLIM:
-                        row = LoiterRadiusFields(p, index, wp.p3, 3, row, w);
-                        break;
-                    case MAVLink.MAV_CMD.LOITER_TO_ALT:
-                        row = LoiterRadiusFields(p, index, wp.p2, 2, row, w);
-                        break;
-                    case MAVLink.MAV_CMD.TAKEOFF:
-                        FieldLabel(p, "Climb pitch (deg)", row);
-                        Number(p, row, wp.p1, 0, 45, 0, v => SetParam(index, 1, v));
-                        row += 28;
-                        break;
-                }
-
-                if (wp.lat != 0 || wp.lng != 0)
-                {
-                    FieldLabel(p, "Latitude", row);
-                    Number(p, row, wp.lat, -90, 90, 7, v =>
-                    {
-                        var item = items[index];
-                        item.lat = v;
-                        items[index] = item;
-                        Changed(false);
-                    });
-                    row += 28;
-                    FieldLabel(p, "Longitude", row);
-                    Number(p, row, wp.lng, -180, 180, 7, v =>
-                    {
-                        var item = items[index];
-                        item.lng = v;
-                        items[index] = item;
-                        Changed(false);
-                    });
-                    row += 28;
-                }
+                detail.Controls.Add(slider);
+                y += 80;
             }
 
-            // move / delete
-            var up = new Button {Text = "Move up", Location = new Point(8, row + 2), Width = 80, Height = 26};
-            up.Click += (s, e) => MoveItem(index, -1);
-            var down = new Button {Text = "Move down", Location = new Point(94, row + 2), Width = 84, Height = 26};
-            down.Click += (s, e) => MoveItem(index, 1);
-            var del = new Button
+            switch (cmd)
             {
-                Text = "Delete", Location = new Point(w - 88, row + 2), Width = 80, Height = 26,
-                BackColor = Color.FromArgb(150, 40, 35), ForeColor = Color.White
-            };
-            del.Click += (s, e) => DeleteItem(index);
-            p.Controls.Add(up);
-            p.Controls.Add(down);
-            p.Controls.Add(del);
-            row += 34;
+                case MAVLink.MAV_CMD.WAYPOINT:
+                case MAVLink.MAV_CMD.SPLINE_WAYPOINT:
+                    FieldLabel("Hold (s)", y);
+                    Number(y, wp.p1, 0, 3600, 0, v => SetParam(index, 1, v));
+                    y += 34;
+                    break;
+                case MAVLink.MAV_CMD.LOITER_TURNS:
+                    FieldLabel("Turns", y);
+                    Number(y, wp.p1, 0, 255, 0, v => SetParam(index, 1, v));
+                    y += 34;
+                    y = LoiterFields(index, y);
+                    break;
+                case MAVLink.MAV_CMD.LOITER_TIME:
+                    FieldLabel("Time (s)", y);
+                    Number(y, wp.p1, 0, 36000, 0, v => SetParam(index, 1, v));
+                    y += 34;
+                    y = LoiterFields(index, y);
+                    break;
+                case MAVLink.MAV_CMD.LOITER_UNLIM:
+                case MAVLink.MAV_CMD.LOITER_TO_ALT:
+                    y = LoiterFields(index, y);
+                    break;
+                case MAVLink.MAV_CMD.TAKEOFF:
+                    FieldLabel("Climb pitch (deg)", y);
+                    Number(y, wp.p1, 0, 45, 0, v => SetParam(index, 1, v));
+                    y += 34;
+                    break;
+            }
 
-            p.Height = row;
-            return y + p.Height + 6;
+            if (wp.lat != 0 || wp.lng != 0)
+            {
+                FieldLabel("Latitude", y);
+                Number(y, wp.lat, -90, 90, 7, v =>
+                {
+                    var item = items[index];
+                    item.lat = v;
+                    items[index] = item;
+                    Changed(false);
+                });
+                y += 34;
+                FieldLabel("Longitude", y);
+                Number(y, wp.lng, -180, 180, 7, v =>
+                {
+                    var item = items[index];
+                    item.lng = v;
+                    items[index] = item;
+                    Changed(false);
+                });
+            }
         }
 
-        int LoiterRadiusFields(Panel p, int index, float value, int paramNo, int row, int w)
+        int LoiterFields(int index, int y)
         {
-            FieldLabel(p, "Radius (ft, 0 = default)", row);
-            Number(p, row, Math.Abs(value) * FtPerM, 0, 30000, 0, v =>
+            var wp = items[index];
+            int n = RadiusParam(wp.id);
+            var min = MinLoiterRadiusMetres();
+            var minFt = Math.Ceiling(min * FtPerM);
+
+            FieldLabel("Radius (ft)", y);
+            // never below the plane's minimum radius
+            Number(y, Math.Max(LoiterRadius(wp) * FtPerM, minFt), Math.Max(0, minFt), 30000, 0, v =>
             {
-                var sign = GetParam(items[index], paramNo) < 0 ? -1 : 1;
-                SetParam(index, paramNo, sign * v / FtPerM);
+                var item = items[index];
+                var sign = GetParam(item, n) < 0 ? -1 : 1;
+                PutParam(ref item, n, (float) (sign * Math.Max(v / FtPerM, min)));
+                items[index] = item;
+                Changed(false);
             });
-            row += 28;
+            y += 32;
+
+            var info = new Label
+            {
+                Text = min > 0
+                    ? "Plane minimum: " + FtText(min) + " (set under Mission Start)"
+                    : "Minimum radius unknown (connect, or set it under Mission Start)",
+                ForeColor = Color.Silver, Font = new Font("Arial", 8.5f), Location = new Point(12, y),
+                Size = new Size(detail.ClientSize.Width - 24, 18)
+            };
+            detail.Controls.Add(info);
+            y += 22;
+
             var ccw = new CheckBox
             {
-                Text = "Counter-clockwise", ForeColor = Color.Gainsboro, Location = new Point(140, row),
-                AutoSize = true, Checked = value < 0
+                Text = "Counter-clockwise", ForeColor = Color.Gainsboro, Font = new Font("Arial", 10f),
+                Location = new Point(12, y), AutoSize = true, Checked = CounterClockwise(wp)
             };
             ccw.CheckedChanged += (s, e) =>
             {
-                var r = Math.Abs(GetParam(items[index], paramNo));
+                var item = items[index];
+                var r = Math.Max(LoiterRadius(item), min);
                 if (r < 1)
-                {
-                    // direction needs a radius; use the default loiter radius
-                    r = LoiterRadius(items[index]);
-                    if (r < 1)
-                        r = 60;
-                }
-
-                SetParam(index, paramNo, ccw.Checked ? -r : r);
+                    r = 60;
+                PutParam(ref item, n, (float) (ccw.Checked ? -r : r));
+                items[index] = item;
+                Changed(false);
             };
-            p.Controls.Add(ccw);
-            return row + 26;
+            detail.Controls.Add(ccw);
+            return y + 32;
         }
-
-        static float GetParam(Locationwp wp, int n) => n == 1 ? wp.p1 : n == 2 ? wp.p2 : n == 3 ? wp.p3 : wp.p4;
 
         void SetParam(int index, int n, double v)
         {
             var item = items[index];
-            switch (n)
-            {
-                case 1: item.p1 = (float) v; break;
-                case 2: item.p2 = (float) v; break;
-                case 3: item.p3 = (float) v; break;
-                default: item.p4 = (float) v; break;
-            }
-
+            PutParam(ref item, n, (float) v);
             items[index] = item;
             Changed(false);
         }
 
         void ConvertCommand(ref Locationwp wp, MAVLink.MAV_CMD to)
         {
-            bool hadLocation = MissionProfile.IsNavWithLocation(wp.id) && (wp.lat != 0 || wp.lng != 0);
+            bool hadLocation = wp.lat != 0 || wp.lng != 0;
             wp.id = (ushort) to;
             wp.p1 = wp.p2 = wp.p3 = wp.p4 = 0;
             switch (to)
@@ -1024,6 +1425,7 @@ namespace MissionPlanner.GCSViews
                     wp.lat = wp.lng = 0;
                     break;
                 case MAVLink.MAV_CMD.LAND:
+                case MAVLink.MAV_CMD.DO_SET_ROI:
                     wp.alt = 0;
                     break;
                 case MAVLink.MAV_CMD.RETURN_TO_LAUNCH:
@@ -1032,16 +1434,17 @@ namespace MissionPlanner.GCSViews
                     break;
             }
 
-            // give a location to items that need one
-            if (MissionProfile.IsNavWithLocation(wp.id) && to != MAVLink.MAV_CMD.TAKEOFF && !hadLocation &&
-                wp.lat == 0 && wp.lng == 0)
+            bool needsLocation = (MissionProfile.IsNavWithLocation(wp.id) && to != MAVLink.MAV_CMD.TAKEOFF) ||
+                                 to == MAVLink.MAV_CMD.DO_SET_ROI;
+            if (needsLocation && !hadLocation)
             {
                 var c = map.Position;
                 wp.lat = c.Lat;
                 wp.lng = c.Lng;
-                if (wp.alt <= 0 && to != MAVLink.MAV_CMD.LAND)
-                    wp.alt = (float) LastAltitude();
             }
+
+            if (MissionProfile.IsNavWithLocation(wp.id) && wp.alt <= 0 && to != MAVLink.MAV_CMD.LAND)
+                wp.alt = (float) LastAltitude();
         }
 
         #endregion
@@ -1072,46 +1475,28 @@ namespace MissionPlanner.GCSViews
             var parts = new List<string>();
             if (prof != null && prof.TotalDistance > 0)
             {
-                parts.Add("Distance " + (prof.TotalDistance / MPerMile).ToString("0.00") + " mi");
-                parts.Add("Time ~" + Math.Ceiling(prof.TotalDistance / CruiseSpeed() / 60) + " min");
-                var maxAboveHome = prof.Waypoints.Where(a => !double.IsNaN(a.Flight)).Select(a => a.Flight - home.Alt)
-                    .DefaultIfEmpty(0).Max();
-                parts.Add("Max " + (maxAboveHome * FtPerM).ToString("0") + " ft above home");
-                var clear = prof.Points.Where(a => !double.IsNaN(a.Terrain) && !double.IsNaN(a.Flight) &&
-                                                   a.Leg > 1).Select(a => a.Clearance).DefaultIfEmpty(double.NaN).Min();
+                parts.Add(FtText(prof.TotalDistance));
+                var t = TimeSpan.FromSeconds(prof.TotalDistance / CruiseSpeed());
+                parts.Add(t.ToString(@"hh\:mm\:ss"));
+                var clear = prof.Points
+                    .Where(a => !double.IsNaN(a.Terrain) && !double.IsNaN(a.Flight) && a.Leg > 1)
+                    .Select(a => a.Clearance).DefaultIfEmpty(double.NaN).Min();
                 if (!double.IsNaN(clear))
-                    parts.Add((clear < FlightPlanner.TerrainClearanceMetres ? "LOW " : "") + "lowest clearance " +
-                              (clear * FtPerM).ToString("0") + " ft");
+                    parts.Add((clear < FlightPlanner.TerrainClearanceMetres ? "LOW " : "") + "min AGL " + FtText(clear));
             }
             else
             {
                 parts.Add(items.Count + " items");
             }
 
-            var line1 = string.Join("   |   ", parts);
-            string line2 = "";
-            if (selected >= 0 && selected < items.Count && prof != null)
-            {
-                var wpIdx = prof.Waypoints.FindIndex(a => a.ItemIndex == selected);
-                if (wpIdx > 0)
-                {
-                    var a = prof.Waypoints[wpIdx - 1];
-                    var b = prof.Waypoints[wpIdx];
-                    var pa = new PointLatLngAlt(a.Lat, a.Lng);
-                    var pb = new PointLatLngAlt(b.Lat, b.Lng);
-                    var d = pa.GetDistance(pb);
-                    var dAlt = double.IsNaN(a.Flight) || double.IsNaN(b.Flight) ? double.NaN : b.Flight - a.Flight;
-                    line2 = "Item " + (selected + 1) + ": " + (d / MPerMile).ToString("0.00") + " mi from " +
-                            (a.ItemIndex < 0 ? "home" : "item " + (a.ItemIndex + 1)) + ", heading " +
-                            pa.GetBearing(pb).ToString("000") + "°" +
-                            (double.IsNaN(dAlt)
-                                ? ""
-                                : ", " + (dAlt >= 0 ? "+" : "") + (dAlt * FtPerM).ToString("0") + " ft" +
-                                  (d > 1 ? " (" + (Math.Atan2(dAlt, d) * 180 / Math.PI).ToString("0.0") + "° slope)" : ""));
-                }
-            }
+            summary.Text = string.Join(" · ", parts) + (notice != "" ? "\n" + notice : "");
 
-            summary.Text = line1 + (line2 != "" ? "\n" + line2 : "");
+            if (selected >= 0 && selected < items.Count && MissionProfile.IsNavWithLocation(items[selected].id))
+                selectedAlt.Text = "Alt " + FtText(items[selected].alt);
+            else if (selected == -1)
+                selectedAlt.Text = "Home " + FtText(home.Alt);
+            else
+                selectedAlt.Text = "";
         }
 
         void ScheduleProfile()
@@ -1124,13 +1509,13 @@ namespace MissionPlanner.GCSViews
         {
             var gen = ++profileGeneration;
             var h = home;
-            var list = new List<Locationwp>(items);
+            var copy = new List<Locationwp>(items);
             Task.Run(() =>
             {
                 MissionProfile prof;
                 try
                 {
-                    prof = MissionProfile.Compute(h, list);
+                    prof = MissionProfile.Compute(h, copy);
                 }
                 catch (Exception ex)
                 {
@@ -1151,7 +1536,6 @@ namespace MissionPlanner.GCSViews
                         profileView.SelectedItem = selected;
                         profileView.Profile = prof;
                         UpdateSummary();
-                        // terrain tiles still downloading: try again shortly
                         if (prof.TerrainMissing && profileRetries++ < 10)
                         {
                             profileTimer.Interval = 2500;
