@@ -8,6 +8,8 @@ permissions:
 jobs:
   buildIOS:
     name: Build IOS
+    # not needed for the Mac app; skipped so it does not compete for scarce macOS runners
+    if: ${{ false }}
     runs-on: macos-15
 
     steps:
