@@ -736,6 +736,7 @@ namespace MissionPlanner
 
             _connectionControl.ShowLinkStats += (sender, e) => ShowConnectionStatsForm();
             SetupRebootButton();
+            SetupPlanButton();
             // mission marker altitude labels use the configured altitude unit
             ArduPilot.WPOverlay.AltUnitProvider = () => CurrentState.AltUnit;
             srtm.datadirectory = $"{Settings.GetDataDirectory()}srtm";
@@ -2511,6 +2512,35 @@ namespace MissionPlanner
             MainMenu.Items.Insert(index < 0 ? MainMenu.Items.Count : index, MenuReboot);
         }
 
+        /// <summary>Top-bar "PLAN" button for the QGC-style mission planning screen</summary>
+        public ToolStripButton MenuPlan;
+
+        private void SetupPlanButton()
+        {
+            MenuPlan = new ToolStripButton
+            {
+                Name = "MenuPlan",
+                Text = "PLAN",
+                ToolTipText = "Mission planning (QGC style)",
+                Image = MenuFlightPlanner.Image,
+                ImageScaling = MenuFlightPlanner.ImageScaling,
+                TextImageRelation = TextImageRelation.ImageAboveText,
+                TextAlign = ContentAlignment.BottomCenter,
+                ForeColor = MenuFlightPlanner.ForeColor,
+                Font = MenuFlightPlanner.Font,
+                Margin = MenuFlightPlanner.Margin,
+                AutoSize = MenuFlightPlanner.AutoSize,
+                Size = MenuFlightPlanner.Size
+            };
+            MenuPlan.Click += (s, e) =>
+            {
+                MyView.ShowScreen("Plan");
+                SaveConfig();
+            };
+            var index = MainMenu.Items.IndexOf(MenuFlightPlanner);
+            MainMenu.Items.Insert(index < 0 ? MainMenu.Items.Count : index + 1, MenuPlan);
+        }
+
         private static Bitmap CreateRebootIcon(Color colour)
         {
             const int size = 36;
@@ -3361,6 +3391,7 @@ namespace MissionPlanner
 
             MyView.AddScreen(new MainSwitcher.Screen("FlightData", FlightData, true));
             MyView.AddScreen(new MainSwitcher.Screen("FlightPlanner", FlightPlanner, true));
+            MyView.AddScreen(new MainSwitcher.Screen("Plan", typeof(GCSViews.PlanView), true));
             MyView.AddScreen(new MainSwitcher.Screen("HWConfig", typeof(GCSViews.InitialSetup), false));
             MyView.AddScreen(new MainSwitcher.Screen("SWConfig", typeof(GCSViews.SoftwareConfig), false));
             MyView.AddScreen(new MainSwitcher.Screen("Simulation", Simulation, true));
