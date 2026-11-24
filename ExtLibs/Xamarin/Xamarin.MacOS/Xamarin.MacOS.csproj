@@ -31,6 +31,7 @@
     <EnablePackageSigning>false</EnablePackageSigning>
     <IncludeMonoRuntime>false</IncludeMonoRuntime>
     <UseSGen>true</UseSGen>
+    <XamMacArch>x86_64,ARM64</XamMacArch>
     <UseRefCounting>true</UseRefCounting>
     <HttpClientHandler>
     </HttpClientHandler>
@@ -48,6 +49,7 @@
     <EnablePackageSigning>false</EnablePackageSigning>
     <IncludeMonoRuntime>true</IncludeMonoRuntime>
     <UseSGen>true</UseSGen>
+    <XamMacArch>x86_64,ARM64</XamMacArch>
     <UseRefCounting>true</UseRefCounting>
     <CodeSignEntitlements>Entitlements.plist</CodeSignEntitlements>
     <LinkMode>None</LinkMode>
@@ -158,7 +160,11 @@
       <Version>13.0.3</Version>
     </PackageReference>
     <PackageReference Include="SkiaSharp.Views.Forms">
-      <Version>2.80.2</Version>
+      <Version>2.88.9</Version>
+    </PackageReference>
+    <!-- 2.88.x is the first SkiaSharp with an arm64 (Apple Silicon) macOS native library -->
+    <PackageReference Include="SkiaSharp">
+      <Version>2.88.9</Version>
     </PackageReference>
   </ItemGroup>
   <ItemGroup>

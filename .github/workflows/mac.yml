@@ -89,6 +89,12 @@ jobs:
           dotnet --list-sdks
           msbuild -v:m -restore  -p:Configuration=Release "ExtLibs\Xamarin\Xamarin.MacOS\Xamarin.MacOS.csproj"
 
+      - name: Check architectures (expect x86_64 + arm64)
+        shell: bash
+        run: |
+          cd "ExtLibs/Xamarin/Xamarin.MacOS/bin/Release/Mission Planner.app/Contents"
+          for f in "MacOS/Mission Planner" $(find . -name "*.dylib"); do echo "$f: $(lipo -archs "$f")"; done
+
       - name: Package
         shell: pwsh
         continue-on-error: true
