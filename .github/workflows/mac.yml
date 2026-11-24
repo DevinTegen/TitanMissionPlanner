@@ -111,6 +111,11 @@ jobs:
         run: |
           npm install --global create-dmg
           cd ExtLibs/Xamarin/Xamarin.MacOS/bin/Release/
+          # Apple Silicon kills native code with an invalid signature. The bundler edits the dylibs after
+          # they were linker-signed, so ad-hoc re-sign each one, then the app.
+          Get-ChildItem 'Mission Planner.app/Contents' -Recurse -Include *.dylib,*.so | ForEach-Object { codesign --force -s - $_.FullName }
+          codesign --force -s - 'Mission Planner.app'
+          codesign -v --deep --strict 'Mission Planner.app'
           create-dmg 'Mission Planner.app' --dmg-title='Mission Planner'
           
       - uses: actions/upload-artifact@v4

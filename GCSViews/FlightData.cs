@@ -62,7 +62,9 @@ namespace MissionPlanner.GCSViews
         internal string selectedscript = "";
 
         // 3D Map control reference for proper disposal
+#if !LIB
         private Controls.OpenGLtest2 _map3D;
+#endif
 
         // Double-click fly to here feature
         private bool _doubleClickFlyToHereEnabled = false;
@@ -499,6 +501,7 @@ namespace MissionPlanner.GCSViews
                 _doubleClickFlyToHereEnabled = chkDoubleClickFlyToHere.Checked;
             };
 
+#if !LIB  // the OpenGL 3D map (OpenTK) is not available in the Mac/mobile build
             // Add 3D Map toggle button to the right of Propagation
             var btn3DMap = new Controls.MyButton
             {
@@ -561,11 +564,16 @@ namespace MissionPlanner.GCSViews
             splitContainer1.Panel2.Controls.Add(btn3DMap);
             btn3DMap.BringToFront();
             btn3DMap.Location = new Point(70 + btnTools.Width + 5 + btnPropagation.Width + 5, 25);
+#endif
 
             // Add checkbox to map panel
             splitContainer1.Panel2.Controls.Add(chkDoubleClickFlyToHere);
             chkDoubleClickFlyToHere.BringToFront();
+#if !LIB
             chkDoubleClickFlyToHere.Location = new Point(70 + btnTools.Width + 5 + btnPropagation.Width + 5 + btn3DMap.Width + 10, 28);
+#else
+            chkDoubleClickFlyToHere.Location = new Point(70 + btnTools.Width + 5 + btnPropagation.Width + 10, 28);
+#endif
 
             // Add double-click handler for map
             gMapControl1.DoubleClick += (s, e) =>
@@ -920,6 +928,7 @@ namespace MissionPlanner.GCSViews
 
             ZedGraphTimer.Stop();
 
+#if !LIB
             // Dispose 3D map if active
             if (_map3D != null && !_map3D.IsDisposed)
             {
@@ -927,6 +936,7 @@ namespace MissionPlanner.GCSViews
                 _map3D.Dispose();
                 _map3D = null;
             }
+#endif
         }
 
         public void LoadLogFile(string file)
