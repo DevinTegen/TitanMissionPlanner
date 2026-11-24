@@ -29,8 +29,10 @@ jobs:
       - name: MAVLink protocol regression tests
         shell: pwsh
         run: |
-          dotnet test MissionPlannerTests/MissionPlannerTests.csproj --configuration Release --filter "FullyQualifiedName~Sysid32Tests|FullyQualifiedName~CameraSettingsTests" --logger "trx;LogFileName=sysid32.trx"
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $out = dotnet test MissionPlannerTests/MissionPlannerTests.csproj --configuration Release --filter "FullyQualifiedName~Sysid32Tests|FullyQualifiedName~CameraSettingsTests" --logger "trx;LogFileName=sysid32.trx" 2>&1
+          $code = $LASTEXITCODE
+          $out | Write-Output
+          if ($code -ne 0) { $out | Select-String "error CS|Failed |Assert\.|Exception:" | Select-Object -First 40 | ForEach-Object { Write-Output "::error::$($_.Line.Trim())" }; exit $code }
 
       # Render the HUD through OpenGL on Mesa llvmpipe (software) and validate the frame.
       # mesa-dist-win's MSVC 26.x build ships without OpenGL, so use the MinGW x64 build.
