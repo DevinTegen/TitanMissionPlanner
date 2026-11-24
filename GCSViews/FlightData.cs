@@ -61,6 +61,12 @@ namespace MissionPlanner.GCSViews
         //The file path of the selected script
         internal string selectedscript = "";
 
+        // 3D Map control reference for proper disposal
+        private Controls.OpenGLtest2 _map3D;
+
+        // Double-click fly to here feature
+        private bool _doubleClickFlyToHereEnabled = false;
+
         private static readonly ILog log = LogManager.GetLogger(MethodBase.GetCurrentMethod().DeclaringType);
         AviWriter aviwriter;
         private bool CameraOverlap;
@@ -168,6 +174,12 @@ namespace MissionPlanner.GCSViews
         //works well for dark background
         Color[] colorsForDefaultQuickView = new Color[] { Color.Blue, Color.Yellow, Color.Pink, Color.LimeGreen, Color.Orange, Color.Aqua, Color.LightCoral, Color.LightSteelBlue, Color.DarkKhaki, Color.LightYellow, Color.Violet, Color.YellowGreen, Color.OrangeRed, Color.Tomato, Color.Teal, Color.CornflowerBlue };
 
+        // Drag and drop for QuickView rearrangement
+        private QuickView _draggedQuickView = null;
+        private Point _dragStartPoint;
+        private Form _dragPreviewForm = null;
+        private System.Windows.Forms.Timer _dragPreviewTimer = null;
+
         Thread thisthread;
 
         int tickStart;
@@ -242,6 +254,9 @@ namespace MissionPlanner.GCSViews
         private bool transponderNeverConnected = true;
         private bool linuxActionLayoutConfigured;
 
+        // Themed tab strip to replace the TabControl
+        private Controls.ThemedTabStrip _themedTabStrip;
+
         public FlightData()
         {
             log.Info("Ctor Start");
@@ -250,12 +265,15 @@ namespace MissionPlanner.GCSViews
 
             log.Info("Components Done");
 
+            // Replace TabControl with ThemedTabStrip
+            ReplaceTabControlWithThemedTabStrip();
+
             instance = this;
 
             this.SubMainLeft.Panel1.ControlAdded += (sender, e) => ManageLeftPanelVisibility();
             this.SubMainLeft.Panel1.ControlRemoved += (sender, e) => ManageLeftPanelVisibility();
-            this.tabControlactions.ControlAdded += (sender, e) => ManageLeftPanelVisibility();
-            this.tabControlactions.ControlRemoved += (sender, e) => ManageLeftPanelVisibility();
+            this._themedTabStrip.ControlAdded += (sender, e) => ManageLeftPanelVisibility();
+            this._themedTabStrip.ControlRemoved += (sender, e) => ManageLeftPanelVisibility();
             this.panel_persistent.ControlAdded += (sender, e) => ManageLeftPanelVisibility();
             this.panel_persistent.ControlRemoved += (sender, e) => ManageLeftPanelVisibility();
             //    _serializer = new DockStateSerializer(dockContainer1);
@@ -269,7 +287,10 @@ namespace MissionPlanner.GCSViews
             mymap.Paint += mymap_Paint;
 
             // populate the unmodified base list
-            tabControlactions.TabPages.ForEach(i => { TabListOriginal.Add((TabPage) i); });
+            foreach (var tabPage in _themedTabStrip.TabPages)
+            {
+                TabListOriginal.Add(tabPage);
+            }
 
             //  mymap.Manager.UseMemoryCache = false;
 
@@ -428,7 +449,132 @@ namespace MissionPlanner.GCSViews
 
             hud1.displayicons = Settings.Instance.GetBoolean("HUD_showicons", false);
 
-            tabControlactions.Multiline = Settings.Instance.GetBoolean("tabControlactions_Multiline", false);
+            // Note: ThemedTabStrip handles overflow with ToolStrip's built-in dropdown, no need for Multiline setting
+
+            // Add Tools button to top-right of map
+            var btnTools = new Controls.MyButton
+            {
+                Text = "Tools",
+                Size = new Size(50, 23),
+                Anchor = AnchorStyles.Top | AnchorStyles.Right
+            };
+            btnTools.Click += (s, e) =>
+            {
+                Form frm = new temp();
+                ThemeManager.ApplyThemeTo(frm);
+                frm.Show();
+            };
+            splitContainer1.Panel2.Controls.Add(btnTools);
+            btnTools.BringToFront();
+            // Position it at top-left
+            btnTools.Anchor = AnchorStyles.Top | AnchorStyles.Left;
+            btnTools.Location = new Point(70, 25);
+
+            // Add Propagation button to the right of Tools
+            var btnPropagation = new Controls.MyButton
+            {
+                Text = "Propagation",
+                Size = new Size(80, 23),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+            btnPropagation.Click += (s, e) =>
+            {
+                new PropagationSettings().Show();
+            };
+            splitContainer1.Panel2.Controls.Add(btnPropagation);
+            btnPropagation.BringToFront();
+            btnPropagation.Location = new Point(70 + btnTools.Width + 5, 25);
+
+            // Add double-click fly to here checkbox (declare first so it can be referenced in 3D map handler)
+            var chkDoubleClickFlyToHere = new CheckBox
+            {
+                Text = "Double-click Fly to Here",
+                AutoSize = true,
+                Anchor = AnchorStyles.Top | AnchorStyles.Left,
+                BackColor = Color.Transparent,
+                ForeColor = Color.White
+            };
+            chkDoubleClickFlyToHere.CheckedChanged += (s, e) =>
+            {
+                _doubleClickFlyToHereEnabled = chkDoubleClickFlyToHere.Checked;
+            };
+
+            // Add 3D Map toggle button to the right of Propagation
+            var btn3DMap = new Controls.MyButton
+            {
+                Text = "3D Map",
+                Size = new Size(60, 23),
+                Anchor = AnchorStyles.Top | AnchorStyles.Left
+            };
+            btn3DMap.Click += (s, e) =>
+            {
+                if (_map3D == null || _map3D.IsDisposed)
+                {
+                    // Create and show 3D map
+                    _map3D = new Controls.OpenGLtest2
+                    {
+                        Dock = DockStyle.Fill
+                    };
+                    splitContainer1.Panel2.Controls.Add(_map3D);
+                    _map3D.BringToFront();
+                    _map3D.Activate();
+                    btn3DMap.Text = "2D Map";
+
+                    // Bring overlay controls to front of 3D map
+                    lbl_hdop.BringToFront();
+                    lbl_sats.BringToFront();
+                    btn3DMap.BringToFront();
+                    // Hide tools, propagation, and double-click checkbox on 3D map
+                    btnTools.Visible = false;
+                    btnPropagation.Visible = false;
+                    chkDoubleClickFlyToHere.Visible = false;
+                }
+                else if (_map3D.Visible)
+                {
+                    // Hide 3D map, show 2D
+                    _map3D.Deactivate();
+                    _map3D.Visible = false;
+                    btn3DMap.Text = "3D Map";
+                    // Show tools, propagation, and double-click checkbox on 2D map
+                    btnTools.Visible = true;
+                    btnPropagation.Visible = true;
+                    chkDoubleClickFlyToHere.Visible = true;
+                }
+                else
+                {
+                    // Show 3D map
+                    _map3D.Visible = true;
+                    _map3D.BringToFront();
+                    _map3D.Activate();
+                    btn3DMap.Text = "2D Map";
+
+                    // Bring overlay controls to front of 3D map
+                    lbl_hdop.BringToFront();
+                    lbl_sats.BringToFront();
+                    btn3DMap.BringToFront();
+                    // Hide tools, propagation, and double-click checkbox on 3D map
+                    btnTools.Visible = false;
+                    btnPropagation.Visible = false;
+                    chkDoubleClickFlyToHere.Visible = false;
+                }
+            };
+            splitContainer1.Panel2.Controls.Add(btn3DMap);
+            btn3DMap.BringToFront();
+            btn3DMap.Location = new Point(70 + btnTools.Width + 5 + btnPropagation.Width + 5, 25);
+
+            // Add checkbox to map panel
+            splitContainer1.Panel2.Controls.Add(chkDoubleClickFlyToHere);
+            chkDoubleClickFlyToHere.BringToFront();
+            chkDoubleClickFlyToHere.Location = new Point(70 + btnTools.Width + 5 + btnPropagation.Width + 5 + btn3DMap.Width + 10, 28);
+
+            // Add double-click handler for map
+            gMapControl1.DoubleClick += (s, e) =>
+            {
+                if (_doubleClickFlyToHereEnabled)
+                {
+                    goHereToolStripMenuItem_Click(null, null);
+                }
+            };
 
         }
 
@@ -456,9 +602,26 @@ namespace MissionPlanner.GCSViews
                 hud1.Dock = DockStyle.Fill;
             }
 
+            // Apply default QuickView settings if no config exists (must happen before setQuickViewRowsCols)
+            if (!Settings.Instance.ContainsKey("quickView1"))
+            {
+                ApplyDefaultQuickViewSettings();
+            }
+
             if (Settings.Instance.ContainsKey("quickViewRows"))
             {
                 setQuickViewRowsCols(Settings.Instance["quickViewCols"], Settings.Instance["quickViewRows"]);
+            }
+            else
+            {
+                // Apply default layout: 5 columns, 3 rows
+                setQuickViewRowsCols("5", "3");
+            }
+
+            // If we loaded from CSV, convert position-based settings to control-name-based settings
+            if (Settings.Instance["quickViewPos_0_0"] != null)
+            {
+                ApplyDefaultQuickViewSettingsToControls();
             }
 
             for (int f = 1; f < 30; f++)
@@ -473,16 +636,66 @@ namespace MissionPlanner.GCSViews
 
                         // set description and unit
                         string desc = Settings.Instance["quickView" + f];
-                        if (QV.Tag == null)
-                            QV.Tag = desc;
-                        QV.desc = MainV2.comPort.MAV.cs.GetNameandUnit(desc);
+
+                        // Check if customfield is specified by fieldname
+                        if(desc.StartsWith("customfield:"))
+                        {
+                            desc = CurrentState.GetCustomField(desc.Substring(12));
+                        }
+
+                        QV.Tag = desc;
+                        if (Settings.Instance["quickView" + f + "_label"] != null)
+                        {
+                            QV.desc = Settings.Instance["quickView" + f + "_label"];
+                        }
+                        else
+                        {
+                            QV.desc = MainV2.comPort.MAV.cs.GetNameandUnit(desc);
+                        }
+                    
+                        // set the number format
+                        string numberformat = Settings.Instance["quickView" + f + "_format"];
+                        QV.numberformat = numberformat != null ? numberformat : "0.00";
+
+                        // set the number color
+                        string numberColor = Settings.Instance["quickView" + f + "_color"];
+                        if (numberColor != null)
+                        {
+                            try
+                            {
+                                QV.numberColor = System.Drawing.ColorTranslator.FromHtml(numberColor);
+                                QV.numberColorBackup = QV.numberColor;
+                            }
+                            catch
+                            {
+                                Settings.Instance.Remove("quickView" + f + "_color");
+                            }
+                        }
+
+                        // Set character width
+                        string charWidth = Settings.Instance["quickView" + f + "_charWidth"];
+                        QV.charWidth = charWidth != null ? int.Parse(charWidth) : -1;
+
+
+                        // Set scale and offset
+                        string scale = Settings.Instance["quickView" + f + "_scale"];
+                        QV.scale = scale != null ? double.Parse(scale) : 1;
+                        string offset = Settings.Instance["quickView" + f + "_offset"];
+                        QV.offset = offset != null ? double.Parse(offset) : 0;
+
+                        // Set gauge settings
+                        string gauge = Settings.Instance["quickView" + f + "_gauge"];
+                        QV.isGauge = gauge == "true";
+                        string gaugeMin = Settings.Instance["quickView" + f + "_gaugeMin"];
+                        QV.gaugeMin = gaugeMin != null ? double.Parse(gaugeMin) : 0;
+                        string gaugeMax = Settings.Instance["quickView" + f + "_gaugeMax"];
+                        QV.gaugeMax = gaugeMax != null ? double.Parse(gaugeMax) : 100;
 
                         // set databinding for value
                         QV.DataBindings.Clear();
                         try
                         {
-                            var b = new Binding("number", bindingSourceQuickTab,
-                                Settings.Instance["quickView" + f], true);
+                            var b = new Binding("number", bindingSourceQuickTab, (string)QV.Tag, true);
                             b.Format += new ConvertEventHandler(BindingTypeToNumber);
                             b.Parse += new ConvertEventHandler(NumberToBindingType);
 
@@ -504,8 +717,7 @@ namespace MissionPlanner.GCSViews
                         {
                             QuickView QV = (QuickView) ctls[0];
                             string desc = QV.desc;
-                            if (QV.Tag == null)
-                                QV.Tag = desc;
+                            QV.Tag = desc;
                             QV.desc = MainV2.comPort.MAV.cs.GetNameandUnit(QV.Tag.ToString());
                         }
                     }
@@ -517,6 +729,9 @@ namespace MissionPlanner.GCSViews
             }
 
             CheckBatteryShow();
+
+            // Enable drag and drop for all existing QuickView controls
+            EnableQuickViewDragDrop();
 
             // make sure the hud user items/warnings/checklist are using the current state
             HUD.Custom.src = MainV2.comPort.MAV.cs;
@@ -553,6 +768,44 @@ namespace MissionPlanner.GCSViews
             updateDisplayView();
 
             hud1.doResize();
+        }
+
+        /// <summary>
+        /// Replaces the TabControl with a ThemedTabStrip for better theme support.
+        /// </summary>
+        private void ReplaceTabControlWithThemedTabStrip()
+        {
+            // Create the themed tab strip
+            _themedTabStrip = new Controls.ThemedTabStrip();
+            _themedTabStrip.Name = "themedTabStrip";
+            _themedTabStrip.Dock = DockStyle.Fill;  // Force Fill like original TabControl
+            _themedTabStrip.TabContextMenuStrip = contextMenuStripactionstab;
+
+            // Copy all tab pages from the TabControl
+            var tabPages = new List<TabPage>();
+            foreach (TabPage tabPage in tabControlactions.TabPages)
+            {
+                tabPages.Add(tabPage);
+            }
+
+            // Remove all tab pages from old control (so controls aren't disposed)
+            tabControlactions.TabPages.Clear();
+
+            var parent = tabControlactions.Parent;
+            var tabControlIndex = parent.Controls.GetChildIndex(tabControlactions);
+
+            parent.SuspendLayout();
+            parent.Controls.Remove(tabControlactions);
+            parent.Controls.Add(_themedTabStrip);
+            parent.Controls.SetChildIndex(_themedTabStrip, tabControlIndex);
+            parent.ResumeLayout(true);
+
+            foreach (var tabPage in tabPages)
+            {
+                _themedTabStrip.AddTab(tabPage);
+            }
+
+            _themedTabStrip.SelectedIndexChanged += tabControl1_SelectedIndexChanged;
         }
 
         public void BUT_playlog_Click(object sender, EventArgs e)
@@ -666,6 +919,14 @@ namespace MissionPlanner.GCSViews
             Settings.Instance["maplast_zoom"] = gMapControl1.Zoom.ToString();
 
             ZedGraphTimer.Stop();
+
+            // Dispose 3D map if active
+            if (_map3D != null && !_map3D.IsDisposed)
+            {
+                _map3D.Deactivate();
+                _map3D.Dispose();
+                _map3D = null;
+            }
         }
 
         public void LoadLogFile(string file)
@@ -737,21 +998,43 @@ namespace MissionPlanner.GCSViews
             TabListDisplay.Add(tabAuxFunction.Name, MainV2.DisplayConfiguration.displayAuxFunctionTab);
 
             TabListDisplay.Add(tabPayload.Name, MainV2.DisplayConfiguration.displayPayloadTab);
+
+            TabListDisplay.Add(tabParams.Name, MainV2.DisplayConfiguration.displayParamsTab);
+
+            TabListDisplay.Add(tabVideo.Name, MainV2.DisplayConfiguration.displayVideoTab);
+
+            TabListDisplay.Add(tabTuning.Name, MainV2.DisplayConfiguration.displayTuningTab);
+
+            TabListDisplay.Add(tabInspector.Name, MainV2.DisplayConfiguration.displayInspectorTab);
         }
 
         private void loadTabControlActions()
         {
+            if (TabListOriginal == null || TabListOriginal.Count == 0)
+                return;
+
             string tabs = Settings.Instance["tabcontrolactions"];
 
-            if (String.IsNullOrEmpty(tabs) || TabListOriginal == null || TabListOriginal.Count == 0)
+            _themedTabStrip.Clear();
+
+            // If no saved configuration, show all tabs by default
+            if (String.IsNullOrEmpty(tabs))
+            {
+                foreach (TabPage tabPage in TabListOriginal)
+                {
+                    if ((TabListDisplay.ContainsKey(tabPage.Name) && TabListDisplay[tabPage.Name] == true) || !TabListDisplay.ContainsKey(tabPage.Name))
+                    {
+                        _themedTabStrip.AddTab(tabPage);
+                        log.Debug("add tabControlactions (default) " + tabPage.Name);
+                    }
+                }
                 return;
+            }
 
             string[] tabarray = tabs.Split(';');
 
             if (tabarray.Length == 0)
                 return;
-
-            tabControlactions.TabPages.Clear();
 
             foreach (var tabname in tabarray)
             {
@@ -759,12 +1042,12 @@ namespace MissionPlanner.GCSViews
                 foreach (TabPage tabPage in TabListOriginal)
                 {
                     // skip the Quick tab if it is currently undocked into a popup window
-                    if (tabQuickDetached && tabPage == tabQuick)
+                    if (_undockedQuickForm != null && !_undockedQuickForm.IsDisposed && tabPage == tabQuick)
                         continue;
 
                     if (tabPage.Name == tabname && ((TabListDisplay.ContainsKey(tabname) && TabListDisplay[tabname] == true) || !TabListDisplay.ContainsKey(tabname)))
                     {
-                        tabControlactions.TabPages.Add(tabPage);
+                        _themedTabStrip.AddTab(tabPage);
                         log.Debug("add tabControlactions " + tabPage.Name);
                         added = true;
                         break;
@@ -783,13 +1066,13 @@ namespace MissionPlanner.GCSViews
             loadTabControlActions();
 
             //we want to at least have one tabpage
-            if (tabControlactions.TabPages.Count == 0 && !tabQuickDetached)
+            if (_themedTabStrip.TabCount == 0)
             {
-                tabControlactions.TabPages.Add(tabQuick);
-                tabControlactions.SelectedIndex = 0;
+                _themedTabStrip.AddTab(tabQuick);
+                _themedTabStrip.SelectedIndex = 0;
             }
 
-            ThemeManager.ApplyThemeTo(tabControlactions);
+            _themedTabStrip.ApplyTheme();
         }
 
         internal void BUT_run_script_Click(object sender, EventArgs e)
@@ -875,52 +1158,52 @@ namespace MissionPlanner.GCSViews
         {
             if (keyData == (Keys.Control | Keys.D1))
             {
-                tabControlactions.SelectedIndex = 0;
+                _themedTabStrip.SelectedIndex = 0;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D2))
             {
-                tabControlactions.SelectedIndex = 1;
+                _themedTabStrip.SelectedIndex = 1;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D3))
             {
-                tabControlactions.SelectedIndex = 2;
+                _themedTabStrip.SelectedIndex = 2;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D4))
             {
-                tabControlactions.SelectedIndex = 3;
+                _themedTabStrip.SelectedIndex = 3;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D5))
             {
-                tabControlactions.SelectedIndex = 4;
+                _themedTabStrip.SelectedIndex = 4;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D6))
             {
-                tabControlactions.SelectedIndex = 5;
+                _themedTabStrip.SelectedIndex = 5;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D7))
             {
-                tabControlactions.SelectedIndex = 6;
+                _themedTabStrip.SelectedIndex = 6;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D8))
             {
-                tabControlactions.SelectedIndex = 7;
+                _themedTabStrip.SelectedIndex = 7;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D9))
             {
-                tabControlactions.SelectedIndex = 8;
+                _themedTabStrip.SelectedIndex = 8;
                 return true;
             }
             else if (keyData == (Keys.Control | Keys.D0))
             {
-                tabControlactions.SelectedIndex = 9;
+                _themedTabStrip.SelectedIndex = 9;
                 return true;
             }
 
@@ -1420,6 +1703,21 @@ namespace MissionPlanner.GCSViews
             catch
             {
                 CustomMessageBox.Show(Strings.ErrorNoResponse, Strings.ERROR);
+            }
+        }
+
+        private void BUT_Reboot_Click(object sender, EventArgs e)
+        {
+            if (CustomMessageBox.Show("Are you sure you want to reboot the autopilot?", "Reboot", MessageBoxButtons.YesNo) == (int)DialogResult.Yes)
+            {
+                try
+                {
+                    MainV2.comPort.doReboot(false, true);
+                }
+                catch
+                {
+                    CustomMessageBox.Show(Strings.CommandFailed, Strings.ERROR);
+                }
             }
         }
 
@@ -1924,24 +2222,77 @@ namespace MissionPlanner.GCSViews
             ((Control) sender).Enabled = true;
         }
 
-        void cam_camimage(Image camimage)
+        public void cam_camimage(Image camimage)
         {
             hud1.bgimage = camimage;
         }
 
         private void CB_tuning_CheckedChanged(object sender, EventArgs e)
         {
-            if (CB_tuning.Checked)
+            UpdateSplitContainerLayout();
+        }
+
+        private void CB_params_CheckedChanged(object sender, EventArgs e)
+        {
+            UpdateSplitContainerLayout();
+        }
+
+        private void UpdateSplitContainerLayout()
+        {
+            bool tuningChecked = CB_tuning.Checked;
+            bool paramsChecked = CB_params.Checked;
+
+            if (tuningChecked && paramsChecked)
             {
+                // Both checked: 3-way split (tuning, params, map)
                 splitContainer1.Panel1Collapsed = false;
+                splitContainer2.Panel1Collapsed = false;
+                splitContainer2.Panel2Collapsed = false;
+
+                // Split into thirds
+                int totalHeight = splitContainer1.Height;
+                splitContainer1.SplitterDistance = (totalHeight * 2) / 3; // Top 2/3 for tuning+params
+                splitContainer2.SplitterDistance = splitContainer1.SplitterDistance / 2; // Split top half equally
+
+                ZedGraphTimer.Enabled = true;
+                ZedGraphTimer.Start();
+                zg1.Visible = true;
+                zg1.Refresh();
+                configRawParams2.InitialTreeCollapsed = true;
+                configRawParams2.Activate();
+            }
+            else if (tuningChecked && !paramsChecked)
+            {
+                // Only tuning checked: 2-way split (tuning, map)
+                splitContainer1.Panel1Collapsed = false;
+                splitContainer2.Panel1Collapsed = false;
+                splitContainer2.Panel2Collapsed = true;
+
                 ZedGraphTimer.Enabled = true;
                 ZedGraphTimer.Start();
                 zg1.Visible = true;
                 zg1.Refresh();
             }
+            else if (!tuningChecked && paramsChecked)
+            {
+                // Only params checked: 2-way split (params, map)
+                splitContainer1.Panel1Collapsed = false;
+                splitContainer2.Panel1Collapsed = true;
+                splitContainer2.Panel2Collapsed = false;
+
+                ZedGraphTimer.Enabled = false;
+                ZedGraphTimer.Stop();
+                zg1.Visible = false;
+                configRawParams2.InitialTreeCollapsed = true;
+                configRawParams2.Activate();
+            }
             else
             {
+                // Neither checked: hide both
                 splitContainer1.Panel1Collapsed = true;
+                splitContainer2.Panel1Collapsed = true;
+                splitContainer2.Panel2Collapsed = true;
+
                 ZedGraphTimer.Enabled = false;
                 ZedGraphTimer.Stop();
                 zg1.Visible = false;
@@ -2502,38 +2853,6 @@ namespace MissionPlanner.GCSViews
             }
         }
 
-        void chk_box_quickview_CheckedChanged(object sender, EventArgs e)
-        {
-            CheckBox checkbox = (CheckBox) sender;
-
-            if (checkbox.Checked)
-            {
-                // save settings
-                Settings.Instance[((QuickView) checkbox.Tag).Name] = checkbox.Name;
-
-                // set description
-                string desc = checkbox.Name;
-                ((QuickView) checkbox.Tag).Tag = desc;
-
-                desc = MainV2.comPort.MAV.cs.GetNameandUnit(desc);
-
-                ((QuickView) checkbox.Tag).desc = desc;
-
-                // set databinding for value
-                ((QuickView) checkbox.Tag).DataBindings.Clear();
-
-                var b = new Binding("number", bindingSourceQuickTab, checkbox.Name,
-                    true);
-                b.Format += new ConvertEventHandler(BindingTypeToNumber);
-                b.Parse += new ConvertEventHandler(NumberToBindingType);
-
-                ((QuickView) checkbox.Tag).DataBindings.Add(b);
-
-                // close selection form
-                ((Form) checkbox.Parent).Close();
-            }
-        }
-
         private void NumberToBindingType(object sender, ConvertEventArgs e)
         {
 
@@ -2615,11 +2934,25 @@ namespace MissionPlanner.GCSViews
         {
             using (Form customForm = new Form())
             {
-                CheckedListBox left = new CheckedListBox();
-                left.Dock = DockStyle.Fill;
-                left.CheckOnClick = true;
+                customForm.Text = "Customize Tabs";
+                customForm.StartPosition = FormStartPosition.CenterParent;
+                customForm.Icon = this.ParentForm?.Icon;
+                customForm.Padding = new Padding(4);
+                customForm.FormBorderStyle = FormBorderStyle.FixedDialog;
+                customForm.MaximizeBox = false;
+                customForm.MinimizeBox = false;
 
-                customForm.Controls.Add(left);
+                // Create a 3-column table layout
+                TableLayoutPanel tableLayout = new TableLayoutPanel();
+                tableLayout.Dock = DockStyle.Fill;
+                tableLayout.ColumnCount = 3;
+                tableLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+                tableLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.33F));
+                tableLayout.ColumnStyles.Add(new ColumnStyle(SizeType.Percent, 33.34F));
+                tableLayout.AutoSize = true;
+                tableLayout.Padding = new Padding(4);
+
+                customForm.Controls.Add(tableLayout);
 
                 string tabs = Settings.Instance["tabcontrolactions"];
 
@@ -2632,25 +2965,59 @@ namespace MissionPlanner.GCSViews
 
                 string[] tabarray = tabs.Split(';').Distinct().ToArray();
 
+                // Map checkboxes to TabPages for lookup when saving
+                var checkboxMap = new Dictionary<CheckBox, TabPage>();
+                var checkboxes = new List<CheckBox>();
+
                 foreach (TabPage tabPage in TabListOriginal)
                 {
-                    if((TabListDisplay.ContainsKey(tabPage.Name) && TabListDisplay[tabPage.Name] == true) || !TabListDisplay.ContainsKey(tabPage.Name))
+                    if ((TabListDisplay.ContainsKey(tabPage.Name) && TabListDisplay[tabPage.Name] == true) || !TabListDisplay.ContainsKey(tabPage.Name))
                     {
-                        if (tabarray.Contains(tabPage.Name))
-                            left.Items.Add(tabPage.Name, true);
-                        else
-                            left.Items.Add(tabPage.Name, false);
+                        // Use the tab's Text (display name) for the checkbox, but track by Name
+                        string displayName = string.IsNullOrEmpty(tabPage.Text) ? tabPage.Name : tabPage.Text;
+
+                        CheckBox chk = new CheckBox();
+                        chk.Text = displayName;
+                        chk.Checked = tabarray.Contains(tabPage.Name);
+                        chk.AutoSize = true;
+                        chk.Margin = new Padding(4);
+
+                        checkboxMap[chk] = tabPage;
+                        checkboxes.Add(chk);
                     }
+                }
+
+                // Calculate rows needed for 3 columns
+                int rowCount = (int)Math.Ceiling(checkboxes.Count / 3.0);
+                tableLayout.RowCount = rowCount;
+                for (int i = 0; i < rowCount; i++)
+                {
+                    tableLayout.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+                }
+
+                // Add checkboxes to table in column order
+                for (int i = 0; i < checkboxes.Count; i++)
+                {
+                    int col = i % 3;
+                    int row = i / 3;
+                    tableLayout.Controls.Add(checkboxes[i], col, row);
                 }
 
                 ThemeManager.ApplyThemeTo(customForm);
 
+                // Auto-size the form to fit content
+                customForm.AutoSize = true;
+                customForm.AutoSizeMode = AutoSizeMode.GrowAndShrink;
+
                 customForm.ShowDialog();
 
                 string answer = "";
-                foreach (var tabPage in left.CheckedItems)
+                foreach (var kvp in checkboxMap)
                 {
-                    answer += tabPage + ";";
+                    if (kvp.Key.Checked)
+                    {
+                        answer += kvp.Value.Name + ";";
+                    }
                 }
 
                 Settings.Instance["tabcontrolactions"] = answer;
@@ -2768,9 +3135,19 @@ namespace MissionPlanner.GCSViews
             if (Settings.Instance.ContainsKey("HudSwap") && Settings.Instance["HudSwap"] == "true")
                 SwapHud1AndMap();
 
+            // Set minimum panel sizes to 25% of width
+            int minPanelSize = MainH.Width / 4;
+            MainH.Panel1MinSize = minPanelSize;
+            MainH.Panel2MinSize = minPanelSize;
+
             if (Settings.Instance.ContainsKey("FlightSplitter"))
             {
                 MainH.SplitterDistance = Settings.Instance.GetInt32("FlightSplitter");
+            }
+            else
+            {
+                // Default to 50% width for HUD panel on fresh install
+                MainH.SplitterDistance = MainH.Width / 2;
             }
 
             if (Settings.Instance.ContainsKey("russian_hud"))
@@ -2799,6 +3176,9 @@ namespace MissionPlanner.GCSViews
             {
                 mainloop();
             }
+
+            // Apply theme to the themed tab strip
+            _themedTabStrip.ApplyTheme();
         }
 
         private void FlightData_ParentChanged(object sender, EventArgs e)
@@ -2886,10 +3266,13 @@ namespace MissionPlanner.GCSViews
 
         private void FlightData_Resize(object sender, EventArgs e)
         {
-            //Gspeed;
-            //Galt;
-            //Gheading;
-            //attitudeIndicatorInstrumentControl1;
+            // Update minimum panel sizes to 25% of width on resize
+            if (MainH != null && MainH.Width > 0)
+            {
+                int minPanelSize = MainH.Width / 4;
+                MainH.Panel1MinSize = minPanelSize;
+                MainH.Panel2MinSize = minPanelSize;
+            }
         }
 
         private void flightPlannerToolStripMenuItem_Click(object sender, EventArgs e)
@@ -3478,7 +3861,7 @@ namespace MissionPlanner.GCSViews
             {
                 SubMainLeft.Panel1, // contains hud1
                 panel_persistent,   // might contain plugin controls
-                tabControlactions   // contains the tabs
+                _themedTabStrip     // contains the tabs
             };
 
             bool controlsEmpty = controlsToCheck.Sum(x => x.Controls.Count) == 0;
@@ -4302,16 +4685,36 @@ namespace MissionPlanner.GCSViews
                                     if (adsbplane == null || pllau == null)
                                         return;
 
+                                    string typeCategory = "";
+                                    if (pllau.Type != "") {
+                                        typeCategory = pllau.Type + " / ";
+                                    }
+                                    typeCategory += pllau.GetCategoryFriendlyString();
+
                                     adsbplane.ToolTipText = "ICAO: " + pllau.Tag + "\n" +
                                                             "Callsign: " + pllau.CallSign + "\n" +
-                                                            "Squawk: " + pllau.Squawk.ToString("X4") + "\n" +
+                                                            "Type/Category: " + typeCategory + "\n" +
+                                                            "Squawk: " + pllau.Squawk.ToString() + "\n" +
                                                             "Alt: " + (pllau.Alt * CurrentState.multiplieralt).ToString("0") + " " + CurrentState.AltUnit + "\n" +
                                                             "Speed: " + (pllau.Speed / 100 /* cm to m */ * CurrentState.multiplierspeed).ToString("0") + " " + CurrentState.SpeedUnit + "\n" +
                                                             "VSpeed: " + (pllau.VerticalSpeed / 100 /* cm to m */ * CurrentState.multiplierspeed).ToString("F1") + " " + CurrentState.SpeedUnit + "\n" +
-                                                            "Heading: " + pllau.Heading.ToString("0") + "°";
-                                    // Add distance
+                                                            "Heading: " + pllau.Heading.ToString("0") + "°" +
+                                                            (pllau.IsOnGround ? " (On Ground)" : "") + "\n";
+                                    // Add distance and altitude delta
                                     if (MainV2.comPort.MAV.cs.Location.Lat != 0 && MainV2.comPort.MAV.cs.Location.Lng != 0)
-                                        adsbplane.ToolTipText += "\n" + "Distance: " + (pllau.GetDistance(MainV2.comPort.MAV.cs.Location) * CurrentState.multiplierdist).ToString("0") + " " + CurrentState.DistanceUnit;
+                                    {
+                                        double distanceM = pllau.GetDistance(MainV2.comPort.MAV.cs.Location);
+                                        string distanceStr;
+                                        if (distanceM >= 1000)
+                                            distanceStr = (distanceM / 1000).ToString("0.#") + " km";
+                                        else
+                                            distanceStr = (distanceM * CurrentState.multiplierdist).ToString("0") + " " + CurrentState.DistanceUnit;
+                                        adsbplane.ToolTipText += "\n" + "Distance: " + distanceStr;
+                                        // Altitude delta (ADSB plane alt - my alt), positive means ADSB plane is above
+                                        double altDelta = (pllau.Alt - MainV2.comPort.MAV.cs.alt) * CurrentState.multiplieralt;
+                                        string altDeltaStr = (altDelta >= 0 ? "+" : "") + altDelta.ToString("0");
+                                        adsbplane.ToolTipText += "\n" + "Alt Delta: " + altDeltaStr + " " + CurrentState.AltUnit;
+                                    }
                                     // Add collision threat level
                                     if (pllau.ThreatLevel != MAVLink.MAV_COLLISION_THREAT_LEVEL.NONE)
                                         adsbplane.ToolTipText += "\n" + "Collision risk: " + (pllau.ThreatLevel == MAVLink.MAV_COLLISION_THREAT_LEVEL.LOW ? "Warning" : "Danger");
@@ -4319,6 +4722,8 @@ namespace MissionPlanner.GCSViews
                                     adsbplane.Position = pllau;
                                     adsbplane.heading = pllau.Heading;
                                     adsbplane.Tag = pllau;
+                                    adsbplane.EmitterCategory = pllau.GetEmitterCategory();
+                                    adsbplane.IsOnGround = pllau.IsOnGround;
 
                                     if (((DateTime) pllau.Time) > DateTime.Now.AddSeconds(-30))
                                     {
@@ -4517,12 +4922,8 @@ namespace MissionPlanner.GCSViews
             {
                 try
                 {
-                    StringBuilder message = new StringBuilder();
-                    MainV2.comPort.MAV.cs.messages.ForEach(x =>
-                    {
-                        message.Insert(0, x.Item1 + " : " + x.Item2 + "\r\n");
-                    });
-                    txt_messagebox.Text = message.ToString();
+                    // Update the new MessagesList control
+                    messagesList1.UpdateMessages(MainV2.comPort.MAV.cs.messages);
 
                     messagecount = messagetime.toUnixTime();
                 }
@@ -4690,103 +5091,9 @@ namespace MissionPlanner.GCSViews
             if (MainV2.DisplayConfiguration.lockQuickView)
                 return;
 
-            QuickView qv = (QuickView) sender;
-
-            Form selectform = new Form
-            {
-                Name = "select",
-                Width = MainV2.instance.Width - 100,
-                Height = MainV2.instance.Height - 100,
-                Text = "Display This",
-                AutoSize = false,
-                StartPosition = FormStartPosition.CenterParent,
-                MaximizeBox = false,
-                MinimizeBox = false,
-                AutoScroll = true,
-                FormBorderStyle = FormBorderStyle.FixedDialog
-
-            };
-            ThemeManager.ApplyThemeTo(selectform);
-
-            object thisBoxed = MainV2.comPort.MAV.cs;
-            Type test = thisBoxed.GetType();
-
-            int max_length = 0;
-            List<(string name, string desc)> fields = new List<(string, string)>();
-
-            foreach (var field in test.GetProperties())
-            {
-                // field.Name has the field's name.
-                object fieldValue = field.GetValue(thisBoxed, null); // Get value
-                if (fieldValue == null)
-                    continue;
-
-                if (!fieldValue.IsNumber())
-                {
-                    if(fieldValue is bool)
-                    {
-                        fieldValue = ((bool)fieldValue) == true ? 1 : 0;
-                    }
-                    else
-                        continue;
-                }
-
-                if (field.Name.Contains("customfield"))
-                {
-                    if (CurrentState.custom_field_names.ContainsKey(field.Name))
-                    {
-                        string name = CurrentState.custom_field_names[field.Name];
-                        max_length = Math.Max(max_length, TextRenderer.MeasureText(name, selectform.Font).Width);
-                        fields.Add((field.Name, name));
-                    }
-                }
-                else
-                {
-                    var fieldDesc = MainV2.comPort.MAV.cs.GetFieldDesc(field.Name);
-                    max_length = Math.Max(max_length, TextRenderer.MeasureText(fieldDesc, selectform.Font).Width);
-                    fields.Add((field.Name, fieldDesc));
-                }
-            }
-
-            max_length += 25;
-            fields.Sort((a, b) => a.Item2.CompareTo(b.Item2));
-
-            int col_count = (int) (Screen.FromControl(this).Bounds.Width * 0.8f) / max_length;
-            int row_count = fields.Count / col_count + ((fields.Count % col_count == 0) ? 0 : 1);
-            int row_height = 20;
-            //selectform.MinimumSize = new Size(col_count * max_length, row_count * row_height);
-            selectform.SuspendLayout();
-            for (int i = 0; i < fields.Count; i++)
-            {
-                CheckBox chk_box = new CheckBox
-                {
-                    // dont change to ToString() = null exception
-                    Checked = qv.Tag != null && qv.Tag.ToString() == fields[i].name,
-                    Text = fields[i].desc,
-                    Name = fields[i].name,
-                    Tag = qv,
-                    Location = new Point(5 + (i / row_count) * (max_length + 5), 2 + (i % row_count) * row_height),
-                    Size = new Size(max_length, row_height),
-                    AutoSize = true
-                };
-                chk_box.CheckedChanged += chk_box_quickview_CheckedChanged;
-                if (chk_box.Checked)
-                    chk_box.BackColor = Color.Green;
-                selectform.Controls.Add(chk_box);
-            }
-
-            selectform.ResumeLayout();
-
-            selectform.Shown += (o, args) =>
-            {
-                selectform.Controls.ForEach(a =>
-                {
-                    if (a is CheckBox && ((CheckBox) a).Checked)
-                        ((CheckBox) a).BackColor = Color.Green;
-                });
-            };
-
-            selectform.ShowDialog(this);
+            new QuickViewOptions((QuickView)sender).ShowDialog();
+            ThemeManager.ApplyThemeTo(tabQuick); // Reset color to theme default if needed
+            Activate(); // Update new settings
         }
 
         private void recordHudToAVIToolStripMenuItem_Click(object sender, EventArgs e)
@@ -4886,7 +5193,7 @@ namespace MissionPlanner.GCSViews
         {
             string answer = "";
 
-            foreach (TabPage tabPage in tabControlactions.TabPages)
+            foreach (TabPage tabPage in _themedTabStrip.TabPages)
             {
                 answer += tabPage.Name + ";";
             }
@@ -5050,6 +5357,128 @@ namespace MissionPlanner.GCSViews
             }
         }
 
+        /// <summary>
+        /// Apply default QuickView settings for fresh installs from embedded CSV resource.
+        /// CSV format is a visual grid where each row is a row in the dashboard.
+        /// CSV format: each row is a dashboard row, each cell is field|color|label|scale
+        /// Lines starting with # are comments.
+        /// </summary>
+        private void ApplyDefaultQuickViewSettings()
+        {
+            try
+            {
+                var assembly = System.Reflection.Assembly.GetExecutingAssembly();
+                using (var stream = assembly.GetManifestResourceStream("MissionPlanner.Resources.DefaultQuickViewSettings.csv"))
+                {
+                    if (stream == null)
+                    {
+                        log.Warn("DefaultQuickViewSettings.csv not found in embedded resources");
+                        return;
+                    }
+
+                    using (var reader = new System.IO.StreamReader(stream))
+                    {
+                        int rowIndex = 0;
+                        int maxCols = 0;
+                        var csvData = new List<string[]>();
+
+                        // First pass: read all data and determine dimensions
+                        while (!reader.EndOfStream)
+                        {
+                            var line = reader.ReadLine();
+
+                            // Skip empty lines and comments
+                            if (string.IsNullOrWhiteSpace(line) || line.TrimStart().StartsWith("#"))
+                                continue;
+
+                            var cells = line.Split(',');
+                            maxCols = Math.Max(maxCols, cells.Length);
+                            csvData.Add(cells);
+                            rowIndex++;
+                        }
+
+                        Settings.Instance["quickViewCols"] = maxCols.ToString();
+                        Settings.Instance["quickViewRows"] = rowIndex.ToString();
+
+                        // Store settings using row_col keys for position-based lookup
+                        for (int row = 0; row < csvData.Count; row++)
+                        {
+                            var cells = csvData[row];
+                            for (int col = 0; col < cells.Length; col++)
+                            {
+                                var cell = cells[col].Trim();
+                                if (string.IsNullOrEmpty(cell))
+                                    continue;
+
+                                // Parse cell: field|color|label|scale
+                                var parts = cell.Split('|');
+                                string field = parts[0].Trim();
+                                string color = parts.Length > 1 ? parts[1].Trim() : null;
+                                string label = parts.Length > 2 ? parts[2].Trim() : null;
+                                string scale = parts.Length > 3 ? parts[3].Trim() : null;
+
+                                // Use position-based key: quickViewPos_row_col
+                                string posKey = "quickViewPos_" + row + "_" + col;
+                                Settings.Instance[posKey] = field;
+
+                                if (!string.IsNullOrWhiteSpace(color))
+                                    Settings.Instance[posKey + "_color"] = color;
+                                if (!string.IsNullOrWhiteSpace(label))
+                                    Settings.Instance[posKey + "_label"] = label;
+                                if (!string.IsNullOrWhiteSpace(scale))
+                                    Settings.Instance[posKey + "_scale"] = scale;
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Error("Error loading default QuickView settings", ex);
+            }
+        }
+
+        /// <summary>
+        /// Apply position-based default settings to QuickView controls after they are created.
+        /// </summary>
+        private void ApplyDefaultQuickViewSettingsToControls()
+        {
+            foreach (Control ctrl in tableLayoutPanelQuick.Controls)
+            {
+                if (ctrl is QuickView QV)
+                {
+                    var pos = tableLayoutPanelQuick.GetPositionFromControl(QV);
+                    string posKey = "quickViewPos_" + pos.Row + "_" + pos.Column;
+
+                    if (Settings.Instance[posKey] != null)
+                    {
+                        string field = Settings.Instance[posKey];
+
+                        // Copy position-based settings to control-name-based settings
+                        Settings.Instance[QV.Name] = field;
+
+                        string color = Settings.Instance[posKey + "_color"];
+                        if (!string.IsNullOrWhiteSpace(color))
+                            Settings.Instance[QV.Name + "_color"] = color;
+
+                        string label = Settings.Instance[posKey + "_label"];
+                        if (!string.IsNullOrWhiteSpace(label))
+                            Settings.Instance[QV.Name + "_label"] = label;
+
+                        string scale = Settings.Instance[posKey + "_scale"];
+                        if (!string.IsNullOrWhiteSpace(scale))
+                            Settings.Instance[QV.Name + "_scale"] = scale;
+
+                        // Clean up position-based keys
+                        Settings.Instance.Remove(posKey);
+                        Settings.Instance.Remove(posKey + "_color");
+                        Settings.Instance.Remove(posKey + "_label");
+                        Settings.Instance.Remove(posKey + "_scale");
+                    }
+                }
+            }
+        }
+
         private void setQuickViewRowsCols(string cols, string rows)
         {
             tableLayoutPanelQuick.PerformLayout();
@@ -5169,6 +5598,13 @@ namespace MissionPlanner.GCSViews
                 QV.numberColorBackup = QV.numberColor;
                 QV.number = 0;
 
+                // Enable drag and drop for rearranging
+                QV.AllowDrop = true;
+                QV.MouseDown += QuickView_MouseDown;
+                QV.MouseMove += QuickView_MouseMove;
+                QV.DragEnter += QuickView_DragEnter;
+                QV.DragDrop += QuickView_DragDrop;
+
                 tableLayoutPanelQuick.Controls.Add(QV);
                 QV.Invalidate();
             }
@@ -5235,6 +5671,313 @@ namespace MissionPlanner.GCSViews
                 }
             }
         }
+
+        #region QuickView Drag and Drop / Move
+
+        // Form that allows mouse events to pass through (click-through)
+        private class DragPreviewForm : Form
+        {
+            protected override CreateParams CreateParams
+            {
+                get
+                {
+                    const int WS_EX_TRANSPARENT = 0x20;
+                    const int WS_EX_LAYERED = 0x80000;
+                    CreateParams cp = base.CreateParams;
+                    cp.ExStyle |= WS_EX_TRANSPARENT | WS_EX_LAYERED;
+                    return cp;
+                }
+            }
+        }
+
+        private void EnableQuickViewDragDrop()
+        {
+            foreach (Control ctrl in tableLayoutPanelQuick.Controls)
+            {
+                if (ctrl is QuickView qv)
+                {
+                    qv.AllowDrop = true;
+                    qv.MouseDown -= QuickView_MouseDown;
+                    qv.MouseMove -= QuickView_MouseMove;
+                    qv.DragEnter -= QuickView_DragEnter;
+                    qv.DragDrop -= QuickView_DragDrop;
+                    qv.MouseDown += QuickView_MouseDown;
+                    qv.MouseMove += QuickView_MouseMove;
+                    qv.DragEnter += QuickView_DragEnter;
+                    qv.DragDrop += QuickView_DragDrop;
+                }
+            }
+        }
+
+        private void QuickView_MouseDown(object sender, MouseEventArgs e)
+        {
+            if (MainV2.DisplayConfiguration.lockQuickView)
+                return;
+
+            if (e.Button == MouseButtons.Left)
+            {
+                _draggedQuickView = sender as QuickView;
+                _dragStartPoint = e.Location;
+            }
+        }
+
+        private void QuickView_MouseMove(object sender, MouseEventArgs e)
+        {
+            if (MainV2.DisplayConfiguration.lockQuickView)
+                return;
+
+            if (_draggedQuickView != null && e.Button == MouseButtons.Left)
+            {
+                // Check if we've moved far enough to start a drag
+                if (Math.Abs(e.X - _dragStartPoint.X) > 10 || Math.Abs(e.Y - _dragStartPoint.Y) > 10)
+                {
+                    // Create visual preview that follows cursor
+                    CreateDragPreview(_draggedQuickView);
+
+                    _draggedQuickView.DoDragDrop(_draggedQuickView, DragDropEffects.Move);
+
+                    // Clean up preview after drag ends
+                    DisposeDragPreview();
+                    _draggedQuickView = null;
+                }
+            }
+        }
+
+        private void CreateDragPreview(QuickView source)
+        {
+            if (_dragPreviewForm != null)
+                return;
+
+            _dragPreviewForm = new DragPreviewForm
+            {
+                FormBorderStyle = FormBorderStyle.None,
+                ShowInTaskbar = false,
+                TopMost = true,
+                Size = source.Size,
+                Opacity = 0.7,
+                StartPosition = FormStartPosition.Manual,
+                BackColor = source.BackColor
+            };
+
+            // Take a bitmap snapshot of the QuickView
+            using (Bitmap bmp = new Bitmap(source.Width, source.Height))
+            {
+                source.DrawToBitmap(bmp, new Rectangle(0, 0, source.Width, source.Height));
+                _dragPreviewForm.BackgroundImage = new Bitmap(bmp);
+                _dragPreviewForm.BackgroundImageLayout = ImageLayout.Stretch;
+            }
+
+            // Position at cursor
+            var cursorPos = Cursor.Position;
+            _dragPreviewForm.Location = new Point(cursorPos.X - source.Width / 2, cursorPos.Y - source.Height / 2);
+            _dragPreviewForm.Show();
+
+            // Use a timer to update position during drag
+            _dragPreviewTimer = new System.Windows.Forms.Timer();
+            _dragPreviewTimer.Interval = 16; // ~60fps
+            _dragPreviewTimer.Tick += DragPreviewTimer_Tick;
+            _dragPreviewTimer.Start();
+        }
+
+        private void DragPreviewTimer_Tick(object sender, EventArgs e)
+        {
+            if (_dragPreviewForm != null && !_dragPreviewForm.IsDisposed)
+            {
+                var cursorPos = Cursor.Position;
+                _dragPreviewForm.Location = new Point(
+                    cursorPos.X - _dragPreviewForm.Width / 2,
+                    cursorPos.Y - _dragPreviewForm.Height / 2);
+            }
+        }
+
+        private void DisposeDragPreview()
+        {
+            if (_dragPreviewTimer != null)
+            {
+                _dragPreviewTimer.Stop();
+                _dragPreviewTimer.Tick -= DragPreviewTimer_Tick;
+                _dragPreviewTimer.Dispose();
+                _dragPreviewTimer = null;
+            }
+
+            if (_dragPreviewForm != null)
+            {
+                if (_dragPreviewForm.BackgroundImage != null)
+                {
+                    _dragPreviewForm.BackgroundImage.Dispose();
+                    _dragPreviewForm.BackgroundImage = null;
+                }
+                _dragPreviewForm.Close();
+                _dragPreviewForm.Dispose();
+                _dragPreviewForm = null;
+            }
+        }
+
+        private void QuickView_DragEnter(object sender, DragEventArgs e)
+        {
+            if (MainV2.DisplayConfiguration.lockQuickView)
+                return;
+
+            if (e.Data.GetDataPresent(typeof(QuickView)))
+            {
+                e.Effect = DragDropEffects.Move;
+            }
+            else
+            {
+                e.Effect = DragDropEffects.None;
+            }
+        }
+
+        private void QuickView_DragDrop(object sender, DragEventArgs e)
+        {
+            if (MainV2.DisplayConfiguration.lockQuickView)
+                return;
+
+            var targetQV = sender as QuickView;
+            var sourceQV = e.Data.GetData(typeof(QuickView)) as QuickView;
+
+            if (targetQV == null || sourceQV == null || targetQV == sourceQV)
+                return;
+
+            SwapQuickViews(sourceQV, targetQV);
+        }
+
+        private void SwapQuickViews(QuickView source, QuickView target)
+        {
+            // Get positions in the table layout
+            var sourcePos = tableLayoutPanelQuick.GetPositionFromControl(source);
+            var targetPos = tableLayoutPanelQuick.GetPositionFromControl(target);
+
+            // Swap positions in the table
+            tableLayoutPanelQuick.SuspendLayout();
+            tableLayoutPanelQuick.SetCellPosition(source, targetPos);
+            tableLayoutPanelQuick.SetCellPosition(target, sourcePos);
+            tableLayoutPanelQuick.ResumeLayout(true);
+
+            // Save the new arrangement
+            SaveQuickViewArrangement();
+        }
+
+        private void MoveQuickView(QuickView qv, int colDelta, int rowDelta)
+        {
+            if (MainV2.DisplayConfiguration.lockQuickView)
+                return;
+
+            var currentPos = tableLayoutPanelQuick.GetPositionFromControl(qv);
+            int newCol = currentPos.Column + colDelta;
+            int newRow = currentPos.Row + rowDelta;
+
+            // Bounds check
+            if (newCol < 0 || newCol >= tableLayoutPanelQuick.ColumnCount ||
+                newRow < 0 || newRow >= tableLayoutPanelQuick.RowCount)
+                return;
+
+            // Find the control at the target position
+            var targetControl = tableLayoutPanelQuick.GetControlFromPosition(newCol, newRow);
+            if (targetControl is QuickView targetQV)
+            {
+                SwapQuickViews(qv, targetQV);
+            }
+        }
+
+        private void SaveQuickViewArrangement()
+        {
+            // Save each QuickView's position based on its cell position
+            // The arrangement is saved by storing which property is at which position
+            foreach (Control ctrl in tableLayoutPanelQuick.Controls)
+            {
+                if (ctrl is QuickView qv)
+                {
+                    var pos = tableLayoutPanelQuick.GetPositionFromControl(qv);
+                    int index = pos.Row * tableLayoutPanelQuick.ColumnCount + pos.Column + 1;
+                    string settingName = "quickView" + index;
+
+                    // Save the property this QuickView displays
+                    if (qv.Tag != null)
+                    {
+                        Settings.Instance[settingName] = qv.Tag.ToString();
+                    }
+
+                    // Update the control's name to match its new position
+                    qv.Name = settingName;
+                }
+            }
+        }
+
+        private void moveLeftToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (sender is ToolStripMenuItem menuItem && menuItem.Owner is ContextMenuStrip menu)
+            {
+                if (menu.SourceControl is QuickView qv)
+                {
+                    MoveQuickView(qv, -1, 0);
+                }
+            }
+        }
+
+        private void moveRightToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (sender is ToolStripMenuItem menuItem && menuItem.Owner is ContextMenuStrip menu)
+            {
+                if (menu.SourceControl is QuickView qv)
+                {
+                    MoveQuickView(qv, 1, 0);
+                }
+            }
+        }
+
+        private void moveUpToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (sender is ToolStripMenuItem menuItem && menuItem.Owner is ContextMenuStrip menu)
+            {
+                if (menu.SourceControl is QuickView qv)
+                {
+                    MoveQuickView(qv, 0, -1);
+                }
+            }
+        }
+
+        private void moveDownToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (sender is ToolStripMenuItem menuItem && menuItem.Owner is ContextMenuStrip menu)
+            {
+                if (menu.SourceControl is QuickView qv)
+                {
+                    MoveQuickView(qv, 0, 1);
+                }
+            }
+        }
+
+        private void contextMenuStripQuickView_Opening(object sender, System.ComponentModel.CancelEventArgs e)
+        {
+            if (sender is ContextMenuStrip menu && menu.SourceControl is QuickView qv)
+            {
+                var pos = tableLayoutPanelQuick.GetPositionFromControl(qv);
+
+                // Enable/disable move options based on position
+                moveLeftToolStripMenuItem.Enabled = pos.Column > 0;
+                moveRightToolStripMenuItem.Enabled = pos.Column < tableLayoutPanelQuick.ColumnCount - 1;
+                moveUpToolStripMenuItem.Enabled = pos.Row > 0;
+                moveDownToolStripMenuItem.Enabled = pos.Row < tableLayoutPanelQuick.RowCount - 1;
+            }
+        }
+
+        private void editQuickViewToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            if (sender is ToolStripMenuItem menuItem && menuItem.Owner is ContextMenuStrip menu)
+            {
+                if (menu.SourceControl is QuickView qv)
+                {
+                    if (MainV2.DisplayConfiguration.lockQuickView)
+                        return;
+
+                    new QuickViewOptions(qv).ShowDialog();
+                    Activate(); // Update new settings
+                }
+            }
+        }
+
+        #endregion
 
         private void startCameraToolStripMenuItem_Click(object sender, EventArgs e)
         {
@@ -5304,39 +6047,103 @@ namespace MissionPlanner.GCSViews
 
         void tabControl1_DrawItem(object sender, DrawItemEventArgs e)
         {
-            // Draw the background of the ListBox control for each item.
-            //e.DrawBackground();
-            // Define the default color of the brush as black.
-            Brush myBrush = Brushes.Black;
+            var tabControl = (TabControl)sender;
+            var tabPage = tabControl.TabPages[e.Index];
+            var tabBounds = e.Bounds;
 
-            LinearGradientBrush linear = new LinearGradientBrush(e.Bounds, Color.FromArgb(0x94, 0xc1, 0x1f),
-                Color.FromArgb(0xcd, 0xe2, 0x96), LinearGradientMode.Vertical);
+            // On first tab, fill the entire tab header area background
+            if (e.Index == 0)
+            {
+                Rectangle headerRect = new Rectangle(0, 0, tabControl.Width, tabControl.ItemSize.Height + 4);
+                using (var headerBrush = new SolidBrush(ThemeManager.BGColor))
+                {
+                    e.Graphics.FillRectangle(headerBrush, headerRect);
+                }
+            }
 
-            e.Graphics.FillRectangle(linear, e.Bounds);
+            // Use theme colors for background
+            Color bgColor = ThemeManager.ControlBGColor;
+            Color textColor = ThemeManager.TextColor;
 
-            // Draw the current item text based on the current Font
-            // and the custom brush settings.
-            e.Graphics.DrawString(((TabControl) sender).TabPages[e.Index].Text,
-                e.Font, myBrush, e.Bounds, StringFormat.GenericDefault);
-            // If the ListBox has focus, draw a focus rectangle around the selected item.
-            e.DrawFocusRectangle();
+            // Highlight selected tab slightly differently
+            if (e.Index == tabControl.SelectedIndex)
+            {
+                bgColor = ThemeManager.BGColor;
+            }
+
+            // Fill background
+            using (var bgBrush = new SolidBrush(bgColor))
+            {
+                e.Graphics.FillRectangle(bgBrush, tabBounds);
+            }
+
+            // Draw text centered
+            using (var textBrush = new SolidBrush(textColor))
+            {
+                var textFormat = new StringFormat
+                {
+                    Alignment = StringAlignment.Center,
+                    LineAlignment = StringAlignment.Center
+                };
+                e.Graphics.DrawString(tabPage.Text, e.Font, textBrush, tabBounds, textFormat);
+            }
         }
 
         private void tabControl1_SelectedIndexChanged(object sender, EventArgs e)
         {
             Messagetabtimer.Stop();
 
-            if (tabControlactions.SelectedTab == tabStatus)
+            if (_themedTabStrip.SelectedTab == tabStatus)
             {
-                tabControlactions.Visible = false;
+                _themedTabStrip.Visible = false;
                 tabStatus.Visible = false;
                 tabStatus_Resize(sender, e);
                 tabStatus.Visible = true;
-                tabControlactions.Visible = true;
+                _themedTabStrip.Visible = true;
             }
-            else if (tabControlactions.SelectedTab == tabPagemessages)
+            else if (_themedTabStrip.SelectedTab == tabPagemessages)
             {
                 Messagetabtimer.Start();
+            }
+            else if (_themedTabStrip.SelectedTab == tabParams)
+            {
+                configRawParams1.InitialTreeCollapsed = true;
+                configRawParams1.Activate();
+            }
+            else if (_themedTabStrip.SelectedTab == tabTuning)
+            {
+                // Hide all tuning controls first
+                configArduplane1.Visible = false;
+                configArducopter1.Visible = false;
+                configArdurover1.Visible = false;
+
+                // Show and activate the appropriate tuning control based on firmware type
+                var firmware = MainV2.comPort.MAV.cs.firmware;
+                if (firmware == Firmwares.ArduPlane)
+                {
+                    configArduplane1.Visible = true;
+                    configArduplane1.Activate();
+                }
+                else if (firmware == Firmwares.ArduCopter2)
+                {
+                    configArducopter1.Visible = true;
+                    configArducopter1.Activate();
+                }
+                else if (firmware == Firmwares.ArduRover)
+                {
+                    configArdurover1.Visible = true;
+                    configArdurover1.Activate();
+                }
+                else
+                {
+                    // Default to copter for unknown firmware types
+                    configArducopter1.Visible = true;
+                    configArducopter1.Activate();
+                }
+            }
+            else if (_themedTabStrip.SelectedTab == tabInspector)
+            {
+                mavlinkInspectorControl1.Activate();
             }
             else
             {
@@ -5347,7 +6154,7 @@ namespace MissionPlanner.GCSViews
                 //  tabStatus.Controls.Remove(temp);
                 // }
 
-                if (tabControlactions.SelectedTab == tabQuick)
+                if (_themedTabStrip.SelectedTab == tabQuick)
                 {
                 }
             }
@@ -5418,7 +6225,9 @@ namespace MissionPlanner.GCSViews
 
         private void tabQuick_Resize(object sender, EventArgs e)
         {
-            tableLayoutPanelQuick.Width = tabQuick.Width;
+            // Constrain dashboard to tab size - prevent it from ever going wider
+            tableLayoutPanelQuick.MaximumSize = new Size(tabQuick.ClientSize.Width, tabQuick.ClientSize.Height);
+            tableLayoutPanelQuick.Size = tabQuick.ClientSize;
             tableLayoutPanelQuick.AutoScroll = false;
         }
 
@@ -5607,28 +6416,28 @@ namespace MissionPlanner.GCSViews
                         bindingSourceHud.UpdateDataSource(MainV2.comPort.MAV.cs));
                     //Console.WriteLine("DONE ");
 
-                    if (tabControlactions.SelectedTab == tabStatus)
+                    if (_themedTabStrip.SelectedTab == tabStatus)
                     {
                         MainV2.comPort.MAV.cs.UpdateCurrentSettings(
                             bindingSourceStatusTab.UpdateDataSource(MainV2.comPort.MAV.cs));
                         this.tabStatus.Invalidate();
                     }
-                    else if (tabControlactions.SelectedTab == tabQuick)
+                    else if (_themedTabStrip.SelectedTab == tabQuick)
                     {
                         MainV2.comPort.MAV.cs.UpdateCurrentSettings(
                             bindingSourceQuickTab.UpdateDataSource(MainV2.comPort.MAV.cs));
                     }
-                    else if (tabControlactions.SelectedTab == tabGauges)
+                    else if (_themedTabStrip.SelectedTab == tabGauges)
                     {
                         MainV2.comPort.MAV.cs.UpdateCurrentSettings(
                             bindingSourceGaugesTab.UpdateDataSource(MainV2.comPort.MAV.cs));
                     }
-                    else if (tabControlactions.SelectedTab == tabPagePreFlight)
+                    else if (_themedTabStrip.SelectedTab == tabPagePreFlight)
                     {
                         MainV2.comPort.MAV.cs.UpdateCurrentSettings(
                             bindingSourceGaugesTab.UpdateDataSource(MainV2.comPort.MAV.cs));
                     }
-                    else if (tabControlactions.SelectedTab == tabPayload)
+                    else if (_themedTabStrip.SelectedTab == tabPayload)
                     {
                         MainV2.comPort.MAV.cs.UpdateCurrentSettings(
                             bindingSourcePayloadTab.UpdateDataSource(MainV2.comPort.MAV.cs));
@@ -5640,8 +6449,9 @@ namespace MissionPlanner.GCSViews
                     MainV2.comPort.MAV.cs.UpdateCurrentSettings(
                         bindingSourceHud.UpdateDataSource(MainV2.comPort.MAV.cs));
                 }
-                //if the tab detached wi have to update it
-                if (tabQuickDetached) MainV2.comPort.MAV.cs.UpdateCurrentSettings(bindingSourceQuickTab.UpdateDataSource(MainV2.comPort.MAV.cs));
+                //if the tab is undocked we have to update it
+                if (_undockedQuickForm != null && !_undockedQuickForm.IsDisposed)
+                    MainV2.comPort.MAV.cs.UpdateCurrentSettings(bindingSourceQuickTab.UpdateDataSource(MainV2.comPort.MAV.cs));
 
                 lastscreenupdate = DateTime.UtcNow;
             }
@@ -6287,45 +7097,93 @@ namespace MissionPlanner.GCSViews
             hud1.displayCellVoltage = true;
             hud1.batterycellcount = iCellCount;
         }
-        private bool tabQuickDetached = false;
         private bool tuningwasrightclick;
+
+        private Form _undockedQuickForm = null;
 
         private void undockDockToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            // If already undocked, just bring the existing window to front
+            if (_undockedQuickForm != null && !_undockedQuickForm.IsDisposed)
+            {
+                _undockedQuickForm.BringToFront();
+                return;
+            }
 
             Form dropout = new Form();
-            TabControl tab = new TabControl();
             dropout.FormBorderStyle = FormBorderStyle.Sizable;
             dropout.ShowInTaskbar = false;
+            dropout.TopMost = true;
             dropout.Size = new Size(300, 450);
-            tabQuickDetached = true;
-            tab.Appearance = TabAppearance.FlatButtons;
-            tab.ItemSize = new Size(0, 0);
-            tab.SizeMode = TabSizeMode.Fixed;
-            tab.Size = new Size(dropout.ClientSize.Width, dropout.ClientSize.Height + 22);
-            tab.Location = new Point(0, -22);
+            dropout.Text = "Dashboard";
+            dropout.BackColor = ThemeManager.BGColor;
+            dropout.Icon = this.ParentForm?.Icon;
 
-            tab.Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right;
+            // Create a TableLayoutPanel to hold copies of QuickViews
+            var tableLayout = new TableLayoutPanel();
+            tableLayout.Dock = DockStyle.Fill;
+            tableLayout.BackColor = ThemeManager.BGColor;
+            tableLayout.ColumnCount = tableLayoutPanelQuick.ColumnCount;
+            tableLayout.RowCount = tableLayoutPanelQuick.RowCount;
 
-            dropout.Text = "Flight DATA";
-            tabControlactions.Controls.Remove(tabQuick);
-            tab.Controls.Add(tabQuick);
-            tabQuick.BorderStyle = BorderStyle.Fixed3D;
+            // Copy column and row styles
+            tableLayout.ColumnStyles.Clear();
+            foreach (ColumnStyle cs in tableLayoutPanelQuick.ColumnStyles)
+                tableLayout.ColumnStyles.Add(new ColumnStyle(cs.SizeType, cs.Width));
+
+            tableLayout.RowStyles.Clear();
+            foreach (RowStyle rs in tableLayoutPanelQuick.RowStyles)
+                tableLayout.RowStyles.Add(new RowStyle(rs.SizeType, rs.Height));
+
+            // Create QuickView copies that share the same data binding
+            foreach (Control ctrl in tableLayoutPanelQuick.Controls)
+            {
+                if (ctrl is QuickView originalQV)
+                {
+                    var pos = tableLayoutPanelQuick.GetPositionFromControl(originalQV);
+
+                    var copyQV = new QuickView();
+                    copyQV.Name = originalQV.Name + "_copy";
+                    copyQV.desc = originalQV.desc;
+                    copyQV.numberformat = originalQV.numberformat;
+                    copyQV.numberColor = originalQV.numberColor;
+                    copyQV.numberColorBackup = originalQV.numberColorBackup;
+                    copyQV.charWidth = originalQV.charWidth;
+                    copyQV.scale = originalQV.scale;
+                    copyQV.offset = originalQV.offset;
+                    copyQV.isGauge = originalQV.isGauge;
+                    copyQV.gaugeMin = originalQV.gaugeMin;
+                    copyQV.gaugeMax = originalQV.gaugeMax;
+                    copyQV.Dock = DockStyle.Fill;
+                    copyQV.Tag = originalQV.Tag;
+
+                    // Bind to the same data source
+                    if (originalQV.Tag != null)
+                    {
+                        try
+                        {
+                            var b = new Binding("number", bindingSourceQuickTab, (string)originalQV.Tag, true);
+                            copyQV.DataBindings.Add(b);
+                        }
+                        catch { }
+                    }
+
+                    tableLayout.Controls.Add(copyQV, pos.Column, pos.Row);
+                }
+            }
+
+            dropout.Controls.Add(tableLayout);
             dropout.FormClosed += dropoutQuick_FormClosed;
-            dropout.Controls.Add(tab);
             dropout.RestoreStartupLocation();
             dropout.Show();
-            tabQuickDetached = true;
-            (sender as ToolStripMenuItem).Visible = false;
+
+            _undockedQuickForm = dropout;
         }
 
         void dropoutQuick_FormClosed(object sender, FormClosedEventArgs e)
         {
             (sender as Form).SaveStartupLocation();
-            tabControlactions.Controls.Add(tabQuick);
-            tabControlactions.SelectedTab = tabQuick;
-            tabQuickDetached = false;
-            contextMenuStripQuickView.Items["undockToolStripMenuItem"].Visible = true;
+            _undockedQuickForm = null;
         }
 
         private void IDENT_btn_Click(object sender, EventArgs e)
@@ -6644,11 +7502,6 @@ namespace MissionPlanner.GCSViews
             }
         }
 
-        private void multiLineToolStripMenuItem_Click(object sender, EventArgs e)
-        {
-            tabControlactions.Multiline = !tabControlactions.Multiline;
-            Settings.Instance["tabControlactions_Multiline"] = tabControlactions.Multiline.ToString();
-        }
 
         private void jumpToTagToolStripMenuItem_Click(object sender, EventArgs e)
         {

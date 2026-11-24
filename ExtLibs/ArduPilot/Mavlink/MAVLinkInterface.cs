@@ -5282,25 +5282,26 @@ Mission Planner waits for 2 valid heartbeat packets before connecting
                     // adsb packets are forwarded and can be from any sysid/compid
                     if (msgid == (byte)MAVLINK_MSG_ID.ADSB_VEHICLE)
                     {
-                        var adsb = message.ToStructure<mavlink_adsb_vehicle_t>();
+                        var adsbMessage = message.ToStructure<mavlink_adsb_vehicle_t>();
 
-                        var id = adsb.ICAO_address.ToString("X5");
+                        var id = adsbMessage.ICAO_address.ToString("X5");
 
                         if (_UpdateADSBPlanePosition != null)
                             _UpdateADSBPlanePosition(this, new adsb.PointLatLngAltHdg(
-                                    adsb.lat / 1e7,
-                                    adsb.lon / 1e7,
-                                    adsb.altitude / 1000,
-                                    adsb.heading * 0.01f,
-                                    adsb.hor_velocity,
+                                    adsbMessage.lat / 1e7,
+                                    adsbMessage.lon / 1e7,
+                                    adsbMessage.altitude / 1000,
+                                    adsbMessage.heading * 0.01f,
+                                    adsbMessage.hor_velocity,
                                     id,
                                     DateTime.Now
                             )
                             {
-                                CallSign = Encoding.UTF8.GetString(adsb.callsign),
-                                Squawk = adsb.squawk,
-                                Raw = adsb,
-                                VerticalSpeed = adsb.ver_velocity,
+                                CallSign = Encoding.UTF8.GetString(adsbMessage.callsign),
+                                Squawk = adsbMessage.squawk,
+                                Raw = adsbMessage,
+                                VerticalSpeed = adsbMessage.ver_velocity,
+                                Category = adsb.GetEmitterCategoryShort((ADSB_EMITTER_TYPE)adsbMessage.emitter_type),
                             }
                             );
                     }
@@ -5436,7 +5437,7 @@ Mission Planner waits for 2 valid heartbeat packets before connecting
                             logdata = logdata.Substring(0, ind);
                         log.Info(DateTime.Now + " " + sev + " " + logdata);
 
-                        MAVlist[sysid, compid].cs.messages.Add((DateTime.Now, logdata));
+                        MAVlist[sysid, compid].cs.messages.Add((DateTime.Now, logdata, sev));
 
                         // cap list at 1000 element
                         while (MAVlist[sysid, compid].cs.messages.Count > 1000)
@@ -5445,7 +5446,7 @@ Mission Planner waits for 2 valid heartbeat packets before connecting
                         // gymbals etc are a child/slave to the main sysid, this displays the children messages under the current displayed vehicle
                         if (sysid == sysidcurrent && compid != compidcurrent)
                             MAVlist[sysidcurrent, compidcurrent].cs.messages
-                                .Add((DateTime.Now, compid + " : " + logdata));
+                                .Add((DateTime.Now, compid + " : " + logdata, sev));
 
                         bool printit = false;
 

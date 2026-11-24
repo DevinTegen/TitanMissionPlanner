@@ -35,29 +35,144 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         private void setup(int servono)
         {
             var servo = String.Format("SERVO{0}", servono);
+            var initializing = true;
+            var applyingEquidistant = false;
+            var syncingTrimSlider = false;
+            System.Windows.Forms.Timer sliderDebounceTimer = null;
+
+            const int controlHeight = 25;
+            var horizontalMargin = new System.Windows.Forms.Padding(2, 0, 2, 0);
 
             var label = new Label()
-                {Text = servono.ToString(), AutoSize = true, TextAlign = System.Drawing.ContentAlignment.MiddleCenter};
+            {
+                Text = servono.ToString(),
+                AutoSize = false,
+                Height = controlHeight,
+                Width = 20,
+                TextAlign = System.Drawing.ContentAlignment.MiddleCenter,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
+            };
             var bAR1 = new HorizontalProgressBar2()
             {
-                Minimum = 800, Maximum = 2200, Value = 1500, DrawLabel = true, Name = "BAR" + servono,
-                Dock = DockStyle.Fill
+                Minimum = 800,
+                Maximum = 2200,
+                Value = 1500,
+                DrawLabel = true,
+                Name = "BAR" + servono,
+                Height = controlHeight,
+                Width = 200,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
             };
             var rev1 = new MissionPlanner.Controls.MavlinkCheckBox()
-                {Enabled = false, Dock = DockStyle.Fill, AutoSize = true};
+            {
+                Enabled = false,
+                AutoSize = false,
+                Height = controlHeight,
+                Width = 20,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin,
+                CheckAlign = System.Drawing.ContentAlignment.MiddleCenter
+            };
             var func1 = new MavlinkComboBox()
-            { Enabled = false, Dock = DockStyle.Fill, DropDownStyle = ComboBoxStyle.DropDownList, Width = 160 };
-            var min1 = new MavlinkNumericUpDown() { Minimum = 800, Maximum = 2200, Value = 1500, Enabled = false, Width = 50 };
-            var trim1 = new MavlinkNumericUpDown() { Minimum = 800, Maximum = 2200, Value = 1500, Enabled = false, Width = 50 };
-            var max1 = new MavlinkNumericUpDown() { Minimum = 800, Maximum = 2200, Value = 1500, Enabled = false, Width = 50 };
+            {
+                Enabled = false,
+                DropDownStyle = ComboBoxStyle.DropDownList,
+                Width = 160,
+                Height = controlHeight,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
+            };
+            var min1 = new MavlinkNumericUpDown()
+            {
+                Minimum = 800,
+                Maximum = 2200,
+                Value = 1500,
+                Enabled = false,
+                Width = 50,
+                Height = controlHeight,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
+            };
+            var trimSlider = new TrackBar()
+            {
+                Minimum = 800,
+                Maximum = 2200,
+                Value = 1500,
+                Width = 420,
+                Height = controlHeight,
+                AutoSize = false,
+                TickFrequency = 100,
+                SmallChange = 10,
+                LargeChange = 10,
+                Enabled = false,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
+            };
+            var trim1 = new MavlinkNumericUpDown()
+            {
+                Minimum = 800,
+                Maximum = 2200,
+                Value = 1500,
+                Enabled = false,
+                Width = 50,
+                Height = controlHeight,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
+            };
+            var max1 = new MavlinkNumericUpDown()
+            {
+                Minimum = 800,
+                Maximum = 2200,
+                Value = 1500,
+                Enabled = false,
+                Width = 50,
+                Height = controlHeight,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
+            };
+            var minMaxFromTrim1 = new NumericUpDown()
+            {
+                Minimum = 0,
+                Maximum = 700,
+                Value = 0,
+                Width = 50,
+                Height = controlHeight,
+                Visible = false,
+                Increment = 10
+            };
+            var equidistantCheck = new CheckBox()
+            {
+                Text = "",
+                AutoSize = false,
+                Height = controlHeight,
+                Width = 20,
+                Anchor = AnchorStyles.None,
+                Margin = new System.Windows.Forms.Padding(8, 0, 0, 0)
+            };
+            var equidistantPanel = new FlowLayoutPanel()
+            {
+                AutoSize = false,
+                Height = controlHeight,
+                Width = 80,
+                FlowDirection = FlowDirection.LeftToRight,
+                WrapContents = false,
+                Anchor = AnchorStyles.None,
+                Margin = horizontalMargin
+            };
+            equidistantPanel.Controls.Add(equidistantCheck);
+            equidistantPanel.Controls.Add(minMaxFromTrim1);
 
             this.tableLayoutPanel1.Controls.Add(label, 0, servono);
             this.tableLayoutPanel1.Controls.Add(bAR1, 1, servono);
             this.tableLayoutPanel1.Controls.Add(rev1, 2, servono);
             this.tableLayoutPanel1.Controls.Add(func1, 3, servono);
             this.tableLayoutPanel1.Controls.Add(min1, 4, servono);
-            this.tableLayoutPanel1.Controls.Add(trim1, 5, servono);
-            this.tableLayoutPanel1.Controls.Add(max1, 6, servono);
+            this.tableLayoutPanel1.Controls.Add(trimSlider, 5, servono);
+            this.tableLayoutPanel1.Controls.Add(trim1, 6, servono);
+            this.tableLayoutPanel1.Controls.Add(max1, 7, servono);
+            this.tableLayoutPanel1.Controls.Add(equidistantPanel, 8, servono);
 
             bAR1.DataBindings.Add("Value", bindingSource1, "ch" + servono + "out");
             rev1.setup(1, 0, servo + "_REVERSED", MainV2.comPort.MAV.param);
@@ -66,6 +181,262 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             min1.setup(800, 2200, 1, 1, servo + "_MIN", MainV2.comPort.MAV.param);
             trim1.setup(800, 2200, 1, 1, servo + "_TRIM", MainV2.comPort.MAV.param);
             max1.setup(800, 2200, 1, 1, servo + "_MAX", MainV2.comPort.MAV.param);
+
+            // Enable slider if trim parameter exists
+            if (MainV2.comPort.MAV.param.ContainsKey(servo + "_TRIM"))
+            {
+                trimSlider.Enabled = true;
+            }
+
+            equidistantCheck.CheckedChanged += (sender, e) =>
+            {
+                if (initializing)
+                    return;
+
+                var checkedState = equidistantCheck.Checked;
+                min1.Enabled = !checkedState;
+                max1.Enabled = !checkedState;
+                minMaxFromTrim1.Visible = checkedState;
+
+                if (checkedState)
+                {
+                    applyingEquidistant = true;
+                    ApplyEquidistantRange(servo, trim1, min1, max1, minMaxFromTrim1);
+                    applyingEquidistant = false;
+                }
+            };
+
+            // Add event handler for min/max from trim control
+            minMaxFromTrim1.ValueChanged += (sender, e) =>
+            {
+                if (initializing)
+                    return;
+
+                if (!equidistantCheck.Checked)
+                    return;
+
+                applyingEquidistant = true;
+                ApplyEquidistantRange(servo, trim1, min1, max1, minMaxFromTrim1);
+                applyingEquidistant = false;
+            };
+
+            // Add event handler for trim changes - uncheck equidistant when trim changes in ANY way
+            trim1.ValueChanged += (sender, e) =>
+            {
+                if (initializing || applyingEquidistant)
+                    return;
+
+                // Sync slider with trim value (only if not already syncing)
+                if (!syncingTrimSlider)
+                {
+                    syncingTrimSlider = true;
+                    try
+                    {
+                        var newSliderValue = Math.Max(trimSlider.Minimum, Math.Min(trimSlider.Maximum, (int)trim1.Value));
+                        if (trimSlider.Value != newSliderValue)
+                        {
+                            trimSlider.Value = newSliderValue;
+                        }
+                    }
+                    finally
+                    {
+                        syncingTrimSlider = false;
+                    }
+                }
+
+                // Always uncheck equidistant when trim changes
+                if (equidistantCheck.Checked)
+                {
+                    equidistantCheck.Checked = false;
+                }
+            };
+
+            // Add event handler for slider changes - sync with trim (debounced)
+            trimSlider.ValueChanged += (sender, e) =>
+            {
+                if (initializing || syncingTrimSlider)
+                    return;
+
+                // Round to nearest 10 immediately for visual feedback
+                var roundedValue = (int)(Math.Round(trimSlider.Value / 10.0) * 10);
+                if (trimSlider.Value != roundedValue)
+                {
+                    syncingTrimSlider = true;
+                    try
+                    {
+                        trimSlider.Value = roundedValue;
+                    }
+                    finally
+                    {
+                        syncingTrimSlider = false;
+                    }
+                    // Don't return - continue to debounce with the rounded value
+                }
+
+                // Debounce: wait 0.3 seconds before syncing to trim
+                if (sliderDebounceTimer != null)
+                {
+                    sliderDebounceTimer.Stop();
+                    sliderDebounceTimer.Dispose();
+                    sliderDebounceTimer = null;
+                }
+
+                var currentSliderValue = trimSlider.Value;
+                sliderDebounceTimer = new System.Windows.Forms.Timer();
+                sliderDebounceTimer.Interval = 300; // 0.3 seconds
+                sliderDebounceTimer.Tick += (s, args) =>
+                {
+                    sliderDebounceTimer.Stop();
+                    sliderDebounceTimer.Dispose();
+                    sliderDebounceTimer = null;
+
+                    // Sync trim with slider value
+                    syncingTrimSlider = true;
+                    try
+                    {
+                        if (trim1.Value != currentSliderValue)
+                        {
+                            trim1.Value = currentSliderValue;
+                        }
+                    }
+                    finally
+                    {
+                        syncingTrimSlider = false;
+                    }
+                };
+                sliderDebounceTimer.Start();
+            };
+
+            // Add event handlers for min/max changes - uncheck equidistant if values change
+            min1.ValueChanged += (sender, e) =>
+            {
+                if (initializing || applyingEquidistant)
+                    return;
+
+                if (equidistantCheck.Checked)
+                {
+                    equidistantCheck.Checked = false;
+                }
+            };
+
+            max1.ValueChanged += (sender, e) =>
+            {
+                if (initializing || applyingEquidistant)
+                    return;
+
+                if (equidistantCheck.Checked)
+                {
+                    equidistantCheck.Checked = false;
+                }
+            };
+
+            if (IsEquidistant(min1.Value, trim1.Value, max1.Value, out var offset))
+            {
+                minMaxFromTrim1.Value = Math.Min(minMaxFromTrim1.Maximum, Math.Max(minMaxFromTrim1.Minimum, offset));
+                equidistantCheck.Checked = true;
+            }
+
+            // Sync slider with trim value after all setup is complete
+            if (MainV2.comPort.MAV.param.ContainsKey(servo + "_TRIM"))
+            {
+                trimSlider.Value = Math.Max(trimSlider.Minimum, Math.Min(trimSlider.Maximum, (int)trim1.Value));
+            }
+
+            initializing = false;
+
+            if (equidistantCheck.Checked)
+            {
+                min1.Enabled = false;
+                max1.Enabled = false;
+                minMaxFromTrim1.Visible = true;
+            }
+
+            // Subscribe to trim1 value changes that happen after setup (e.g., param refresh)
+            trim1.EnabledChanged += (sender, e) =>
+            {
+                if (trim1.Enabled && !syncingTrimSlider)
+                {
+                    syncingTrimSlider = true;
+                    try
+                    {
+                        var newValue = Math.Max(trimSlider.Minimum, Math.Min(trimSlider.Maximum, (int)trim1.Value));
+                        if (trimSlider.Value != newValue)
+                        {
+                            trimSlider.Value = newValue;
+                        }
+                    }
+                    finally
+                    {
+                        syncingTrimSlider = false;
+                    }
+                }
+            };
+        }
+
+        private static void ApplyEquidistantRange(string servo, NumericUpDown trim, NumericUpDown min, NumericUpDown max,
+            NumericUpDown offset)
+        {
+            var trimValue = trim.Value;
+            var newMin = ClampServoValue(trimValue - offset.Value);
+            var newMax = ClampServoValue(trimValue + offset.Value);
+
+            min.Value = newMin;
+            max.Value = newMax;
+
+            // Explicitly write the new limits so the change is not UI-only
+            WriteServoRange(servo, newMin, newMax);
+        }
+
+        private static decimal ClampServoValue(decimal value)
+        {
+            if (value < 800) return 800;
+            if (value > 2200) return 2200;
+            return value;
+        }
+
+        private static bool IsEquidistant(decimal min, decimal trim, decimal max, out decimal offset)
+        {
+            offset = 0;
+            if (trim < min || trim > max)
+                return false;
+
+            var diffLow = trim - min;
+            var diffHigh = max - trim;
+
+            if (diffLow == diffHigh)
+            {
+                offset = diffLow;
+                return true;
+            }
+
+            return false;
+        }
+
+        private static void WriteServoRange(string servo, decimal newMin, decimal newMax)
+        {
+            if (MainV2.comPort?.BaseStream == null || !MainV2.comPort.BaseStream.IsOpen)
+                return;
+
+            var minParam = servo + "_MIN";
+            var maxParam = servo + "_MAX";
+
+            if (MainV2.comPort.MAV?.param == null)
+                return;
+
+            try
+            {
+                if (MainV2.comPort.MAV.param.ContainsKey(minParam))
+                    MainV2.comPort.setParam((byte)MainV2.comPort.sysidcurrent, (byte)MainV2.comPort.compidcurrent,
+                        minParam, (double)newMin);
+
+                if (MainV2.comPort.MAV.param.ContainsKey(maxParam))
+                    MainV2.comPort.setParam((byte)MainV2.comPort.sysidcurrent, (byte)MainV2.comPort.compidcurrent,
+                        maxParam, (double)newMax);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to set {servo} min/max from trim: {ex}");
+            }
         }
 
         public void Activate()

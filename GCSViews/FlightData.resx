@@ -310,13 +310,13 @@
     <value>System.Windows.Forms.ContextMenuStrip, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
   </data>
   <data name="tabQuick.AutoScroll" type="System.Boolean, mscorlib">
-    <value>True</value>
+    <value>False</value>
   </data>
   <data name="tableLayoutPanelQuick.AutoScroll" type="System.Boolean, mscorlib">
-    <value>True</value>
+    <value>False</value>
   </data>
   <data name="tableLayoutPanelQuick.AutoSizeMode" type="System.Windows.Forms.AutoSizeMode, System.Windows.Forms">
-    <value>GrowAndShrink</value>
+    <value>GrowOnly</value>
   </data>
   <data name="tableLayoutPanelQuick.ColumnCount" type="System.Int32, mscorlib">
     <value>2</value>
@@ -334,7 +334,7 @@
     <value>154, 22</value>
   </data>
   <data name="undockToolStripMenuItem.Text" xml:space="preserve">
-    <value>Undock</value>
+    <value>Pop Out</value>
   </data>
   <data name="contextMenuStripQuickView.Size" type="System.Drawing.Size, System.Drawing">
     <value>155, 48</value>
@@ -577,7 +577,7 @@
     <value>4</value>
   </data>
   <data name="tabQuick.Text" xml:space="preserve">
-    <value>Quick</value>
+    <value>Dashboard</value>
   </data>
   <data name="&gt;&gt;tabQuick.Name" xml:space="preserve">
     <value>tabQuick</value>
@@ -943,7 +943,7 @@
     <value>79</value>
   </data>
   <data name="BUT_ARM.Text" xml:space="preserve">
-    <value>Arm/ Disarm</value>
+    <value>Arm | Disarm</value>
   </data>
   <data name="BUT_ARM.ToolTip" xml:space="preserve">
     <value>Arm the Mav</value>
@@ -992,6 +992,36 @@
   </data>
   <data name="&gt;&gt;BUT_mountmode.ZOrder" xml:space="preserve">
     <value>11</value>
+  </data>
+  <data name="BUT_Reboot.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="BUT_Reboot.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
+    <value>NoControl</value>
+  </data>
+  <data name="BUT_Reboot.Location" type="System.Drawing.Point, System.Drawing">
+    <value>60, 148</value>
+  </data>
+  <data name="BUT_Reboot.Size" type="System.Drawing.Size, System.Drawing">
+    <value>51, 30</value>
+  </data>
+  <data name="BUT_Reboot.TabIndex" type="System.Int32, mscorlib">
+    <value>100</value>
+  </data>
+  <data name="BUT_Reboot.Text" xml:space="preserve">
+    <value>Reboot</value>
+  </data>
+  <data name="&gt;&gt;BUT_Reboot.Name" xml:space="preserve">
+    <value>BUT_Reboot</value>
+  </data>
+  <data name="&gt;&gt;BUT_Reboot.Type" xml:space="preserve">
+    <value>MissionPlanner.Controls.MyButton, MissionPlanner.Controls, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;BUT_Reboot.Parent" xml:space="preserve">
+    <value>tableLayoutPanel1</value>
+  </data>
+  <data name="&gt;&gt;BUT_Reboot.ZOrder" xml:space="preserve">
+    <value>12</value>
   </data>
   <data name="BUT_joystick.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
     <value>Fill</value>
@@ -1451,6 +1481,213 @@
   </data>
   <data name="&gt;&gt;tabPagemessages.ZOrder" xml:space="preserve">
     <value>2</value>
+  </data>
+  <data name="tabParams.TabIndex" type="System.Int32, mscorlib">
+    <value>9</value>
+  </data>
+  <data name="tabParams.Text" xml:space="preserve">
+    <value>Params</value>
+  </data>
+  <data name="&gt;&gt;tabParams.Name" xml:space="preserve">
+    <value>tabParams</value>
+  </data>
+  <data name="&gt;&gt;tabParams.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;tabParams.Parent" xml:space="preserve">
+    <value>tabControlactions</value>
+  </data>
+  <data name="&gt;&gt;tabParams.ZOrder" xml:space="preserve">
+    <value>3</value>
+  </data>
+  <data name="configRawParams1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="configRawParams1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="configRawParams1.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;configRawParams1.Name" xml:space="preserve">
+    <value>configRawParams1</value>
+  </data>
+  <data name="&gt;&gt;configRawParams1.Type" xml:space="preserve">
+    <value>MissionPlanner.GCSViews.ConfigurationView.ConfigRawParams, MissionPlanner, Version=1.3.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;configRawParams1.Parent" xml:space="preserve">
+    <value>tabParams</value>
+  </data>
+  <data name="&gt;&gt;configRawParams1.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="tabVideo.TabIndex" type="System.Int32, mscorlib">
+    <value>10</value>
+  </data>
+  <data name="tabVideo.Text" xml:space="preserve">
+    <value>Video</value>
+  </data>
+  <data name="&gt;&gt;tabVideo.Name" xml:space="preserve">
+    <value>tabVideo</value>
+  </data>
+  <data name="&gt;&gt;tabVideo.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;tabVideo.Parent" xml:space="preserve">
+    <value>tabControlactions</value>
+  </data>
+  <data name="&gt;&gt;tabVideo.ZOrder" xml:space="preserve">
+    <value>4</value>
+  </data>
+  <data name="flightPlannerVideoOptions1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="flightPlannerVideoOptions1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="flightPlannerVideoOptions1.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;flightPlannerVideoOptions1.Name" xml:space="preserve">
+    <value>flightPlannerVideoOptions1</value>
+  </data>
+  <data name="&gt;&gt;flightPlannerVideoOptions1.Type" xml:space="preserve">
+    <value>MissionPlanner.Controls.FlightPlannerVideoOptions, MissionPlanner, Version=1.3.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;flightPlannerVideoOptions1.Parent" xml:space="preserve">
+    <value>tabVideo</value>
+  </data>
+  <data name="&gt;&gt;flightPlannerVideoOptions1.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="tabTuning.TabIndex" type="System.Int32, mscorlib">
+    <value>11</value>
+  </data>
+  <data name="tabTuning.Text" xml:space="preserve">
+    <value>Tuning</value>
+  </data>
+  <data name="&gt;&gt;tabTuning.Name" xml:space="preserve">
+    <value>tabTuning</value>
+  </data>
+  <data name="&gt;&gt;tabTuning.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;tabTuning.Parent" xml:space="preserve">
+    <value>tabControlactions</value>
+  </data>
+  <data name="&gt;&gt;tabTuning.ZOrder" xml:space="preserve">
+    <value>5</value>
+  </data>
+  <data name="configArduplane1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="configArduplane1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="configArduplane1.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;configArduplane1.Name" xml:space="preserve">
+    <value>configArduplane1</value>
+  </data>
+  <data name="&gt;&gt;configArduplane1.Type" xml:space="preserve">
+    <value>MissionPlanner.GCSViews.ConfigurationView.ConfigArduplane, MissionPlanner, Version=1.3.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;configArduplane1.Parent" xml:space="preserve">
+    <value>tabTuning</value>
+  </data>
+  <data name="&gt;&gt;configArduplane1.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="configArducopter1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="configArducopter1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="configArducopter1.TabIndex" type="System.Int32, mscorlib">
+    <value>1</value>
+  </data>
+  <data name="&gt;&gt;configArducopter1.Name" xml:space="preserve">
+    <value>configArducopter1</value>
+  </data>
+  <data name="&gt;&gt;configArducopter1.Type" xml:space="preserve">
+    <value>MissionPlanner.GCSViews.ConfigurationView.ConfigArducopter, MissionPlanner, Version=1.3.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;configArducopter1.Parent" xml:space="preserve">
+    <value>tabTuning</value>
+  </data>
+  <data name="&gt;&gt;configArducopter1.ZOrder" xml:space="preserve">
+    <value>1</value>
+  </data>
+  <data name="configArdurover1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="configArdurover1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="configArdurover1.TabIndex" type="System.Int32, mscorlib">
+    <value>2</value>
+  </data>
+  <data name="&gt;&gt;configArdurover1.Name" xml:space="preserve">
+    <value>configArdurover1</value>
+  </data>
+  <data name="&gt;&gt;configArdurover1.Type" xml:space="preserve">
+    <value>MissionPlanner.GCSViews.ConfigurationView.ConfigArdurover, MissionPlanner, Version=1.3.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;configArdurover1.Parent" xml:space="preserve">
+    <value>tabTuning</value>
+  </data>
+  <data name="&gt;&gt;configArdurover1.ZOrder" xml:space="preserve">
+    <value>2</value>
+  </data>
+  <data name="tabInspector.Location" type="System.Drawing.Point, System.Drawing">
+    <value>4, 25</value>
+  </data>
+  <data name="tabInspector.Padding" type="System.Windows.Forms.Padding, System.Windows.Forms">
+    <value>3, 3, 3, 3</value>
+  </data>
+  <data name="tabInspector.Size" type="System.Drawing.Size, System.Drawing">
+    <value>290, 241</value>
+  </data>
+  <data name="tabInspector.TabIndex" type="System.Int32, mscorlib">
+    <value>26</value>
+  </data>
+  <data name="tabInspector.Text" xml:space="preserve">
+    <value>Inspector</value>
+  </data>
+  <data name="&gt;&gt;tabInspector.Name" xml:space="preserve">
+    <value>tabInspector</value>
+  </data>
+  <data name="&gt;&gt;tabInspector.Type" xml:space="preserve">
+    <value>System.Windows.Forms.TabPage, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;tabInspector.Parent" xml:space="preserve">
+    <value>tabControlactions</value>
+  </data>
+  <data name="&gt;&gt;tabInspector.ZOrder" xml:space="preserve">
+    <value>6</value>
+  </data>
+  <data name="mavlinkInspectorControl1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="mavlinkInspectorControl1.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="mavlinkInspectorControl1.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;mavlinkInspectorControl1.Name" xml:space="preserve">
+    <value>mavlinkInspectorControl1</value>
+  </data>
+  <data name="&gt;&gt;mavlinkInspectorControl1.Type" xml:space="preserve">
+    <value>MissionPlanner.Controls.MAVLinkInspectorControl, MissionPlanner.Controls, Version=1.0.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;mavlinkInspectorControl1.Parent" xml:space="preserve">
+    <value>tabInspector</value>
+  </data>
+  <data name="&gt;&gt;mavlinkInspectorControl1.ZOrder" xml:space="preserve">
+    <value>0</value>
   </data>
   <data name="myButton1.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
     <value>NoControl</value>
@@ -5327,10 +5564,91 @@
     <value>ZedGraph.ZedGraphControl, ZedGraph, Version=5.1.5.0, Culture=neutral, PublicKeyToken=null</value>
   </data>
   <data name="&gt;&gt;zg1.Parent" xml:space="preserve">
-    <value>splitContainer1.Panel1</value>
+    <value>splitContainer2.Panel1</value>
   </data>
   <data name="&gt;&gt;zg1.ZOrder" xml:space="preserve">
     <value>0</value>
+  </data>
+  <data name="splitContainer2.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="splitContainer2.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="splitContainer2.Orientation" type="System.Windows.Forms.Orientation, System.Windows.Forms">
+    <value>Horizontal</value>
+  </data>
+  <data name="splitContainer2.Panel1Collapsed" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="splitContainer2.Panel2Collapsed" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="splitContainer2.Size" type="System.Drawing.Size, System.Drawing">
+    <value>595, 210</value>
+  </data>
+  <data name="splitContainer2.SplitterDistance" type="System.Int32, mscorlib">
+    <value>70</value>
+  </data>
+  <data name="splitContainer2.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Name" xml:space="preserve">
+    <value>splitContainer2</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Type" xml:space="preserve">
+    <value>System.Windows.Forms.SplitContainer, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Parent" xml:space="preserve">
+    <value>splitContainer1.Panel1</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel1.Name" xml:space="preserve">
+    <value>splitContainer2.Panel1</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel1.Type" xml:space="preserve">
+    <value>System.Windows.Forms.SplitterPanel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel1.Parent" xml:space="preserve">
+    <value>splitContainer2</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel1.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="configRawParams2.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
+    <value>Fill</value>
+  </data>
+  <data name="configRawParams2.Location" type="System.Drawing.Point, System.Drawing">
+    <value>0, 0</value>
+  </data>
+  <data name="configRawParams2.TabIndex" type="System.Int32, mscorlib">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;configRawParams2.Name" xml:space="preserve">
+    <value>configRawParams2</value>
+  </data>
+  <data name="&gt;&gt;configRawParams2.Type" xml:space="preserve">
+    <value>MissionPlanner.GCSViews.ConfigurationView.ConfigRawParams, MissionPlanner, Version=1.3.0.0, Culture=neutral, PublicKeyToken=null</value>
+  </data>
+  <data name="&gt;&gt;configRawParams2.Parent" xml:space="preserve">
+    <value>splitContainer2.Panel2</value>
+  </data>
+  <data name="&gt;&gt;configRawParams2.ZOrder" xml:space="preserve">
+    <value>0</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel2.Name" xml:space="preserve">
+    <value>splitContainer2.Panel2</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel2.Type" xml:space="preserve">
+    <value>System.Windows.Forms.SplitterPanel, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel2.Parent" xml:space="preserve">
+    <value>splitContainer2</value>
+  </data>
+  <data name="&gt;&gt;splitContainer2.Panel2.ZOrder" xml:space="preserve">
+    <value>1</value>
   </data>
   <data name="&gt;&gt;splitContainer1.Panel1.Name" xml:space="preserve">
     <value>splitContainer1.Panel1</value>
@@ -5798,19 +6116,19 @@
     <value>NoControl</value>
   </data>
   <data name="lbl_hdop.Location" type="System.Drawing.Point, System.Drawing">
-    <value>-1, 149</value>
+    <value>-1, 147</value>
   </data>
   <data name="lbl_hdop.Size" type="System.Drawing.Size, System.Drawing">
-    <value>43, 12</value>
+    <value>160, 18</value>
   </data>
   <data name="lbl_hdop.TabIndex" type="System.Int32, mscorlib">
     <value>70</value>
   </data>
   <data name="lbl_hdop.Text" xml:space="preserve">
-    <value>hdop: 0</value>
+    <value>HDOP: 0.0 VDOP: 0.0</value>
   </data>
   <data name="lbl_hdop.ToolTip" xml:space="preserve">
-    <value>gps hdop</value>
+    <value>GPS HDOP (Horizontal) and VDOP (Vertical) Dilution of Precision</value>
   </data>
   <data name="&gt;&gt;lbl_hdop.Name" xml:space="preserve">
     <value>lbl_hdop</value>
@@ -5831,10 +6149,10 @@
     <value>NoControl</value>
   </data>
   <data name="lbl_sats.Location" type="System.Drawing.Point, System.Drawing">
-    <value>-1, 168</value>
+    <value>-1, 166</value>
   </data>
   <data name="lbl_sats.Size" type="System.Drawing.Size, System.Drawing">
-    <value>40, 12</value>
+    <value>70, 18</value>
   </data>
   <data name="lbl_sats.TabIndex" type="System.Int32, mscorlib">
     <value>71</value>
@@ -5951,7 +6269,7 @@
     <value>NoControl</value>
   </data>
   <data name="CHK_autopan.Location" type="System.Drawing.Point, System.Drawing">
-    <value>325, 3</value>
+    <value>397, 3</value>
   </data>
   <data name="CHK_autopan.Size" type="System.Drawing.Size, System.Drawing">
     <value>70, 17</value>
@@ -6012,6 +6330,42 @@
   </data>
   <data name="&gt;&gt;CB_tuning.ZOrder" xml:space="preserve">
     <value>2</value>
+  </data>
+  <data name="CB_params.Anchor" type="System.Windows.Forms.AnchorStyles, System.Windows.Forms">
+    <value>Bottom, Left</value>
+  </data>
+  <data name="CB_params.AutoSize" type="System.Boolean, mscorlib">
+    <value>True</value>
+  </data>
+  <data name="CB_params.ImeMode" type="System.Windows.Forms.ImeMode, System.Windows.Forms">
+    <value>NoControl</value>
+  </data>
+  <data name="CB_params.Location" type="System.Drawing.Point, System.Drawing">
+    <value>327, 3</value>
+  </data>
+  <data name="CB_params.Size" type="System.Drawing.Size, System.Drawing">
+    <value>62, 17</value>
+  </data>
+  <data name="CB_params.TabIndex" type="System.Int32, mscorlib">
+    <value>63</value>
+  </data>
+  <data name="CB_params.Text" xml:space="preserve">
+    <value>Params</value>
+  </data>
+  <data name="CB_params.ToolTip" xml:space="preserve">
+    <value>Show the parameter editor</value>
+  </data>
+  <data name="&gt;&gt;CB_params.Name" xml:space="preserve">
+    <value>CB_params</value>
+  </data>
+  <data name="&gt;&gt;CB_params.Type" xml:space="preserve">
+    <value>System.Windows.Forms.CheckBox, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </data>
+  <data name="&gt;&gt;CB_params.Parent" xml:space="preserve">
+    <value>panel1</value>
+  </data>
+  <data name="&gt;&gt;CB_params.ZOrder" xml:space="preserve">
+    <value>3</value>
   </data>
   <data name="panel1.Dock" type="System.Windows.Forms.DockStyle, System.Windows.Forms">
     <value>Fill</value>

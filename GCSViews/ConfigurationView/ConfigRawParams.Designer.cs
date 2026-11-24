@@ -42,11 +42,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             this.BUT_save = new MissionPlanner.Controls.MyButton();
             this.BUT_load = new MissionPlanner.Controls.MyButton();
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
-            this.label1 = new System.Windows.Forms.Label();
-            this.BUT_paramfileload = new MissionPlanner.Controls.MyButton();
-            this.CMB_paramfiles = new System.Windows.Forms.ComboBox();
             this.BUT_reset_params = new MissionPlanner.Controls.MyButton();
-            this.txt_search = new System.Windows.Forms.TextBox();
             this.label2 = new System.Windows.Forms.Label();
             this.BUT_commitToFlash = new MissionPlanner.Controls.MyButton();
             this.chk_modified = new System.Windows.Forms.CheckBox();
@@ -63,7 +59,8 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             this.Desc = new System.Windows.Forms.DataGridViewTextBoxColumn();
             this.Fav = new System.Windows.Forms.DataGridViewCheckBoxColumn();
             this.but_collapse = new MissionPlanner.Controls.MyButton();
-            this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
+            this.tableLayoutPanel1 = new System.Windows.Forms.FlowLayoutPanel();
+            this.txt_search = new MissionPlanner.Controls.PlaceholderTextBox();
             ((System.ComponentModel.ISupportInitialize)(this.splitContainer1)).BeginInit();
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
@@ -118,26 +115,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             this.toolTip1.InitialDelay = 500;
             this.toolTip1.ReshowDelay = 100;
             // 
-            // label1
-            // 
-            resources.ApplyResources(this.label1, "label1");
-            this.label1.Name = "label1";
-            // 
-            // BUT_paramfileload
-            // 
-            resources.ApplyResources(this.BUT_paramfileload, "BUT_paramfileload");
-            this.BUT_paramfileload.Name = "BUT_paramfileload";
-            this.BUT_paramfileload.TextColorNotEnabled = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(87)))), ((int)(((byte)(4)))));
-            this.BUT_paramfileload.UseVisualStyleBackColor = true;
-            this.BUT_paramfileload.Click += new System.EventHandler(this.BUT_paramfileload_Click);
-            // 
-            // CMB_paramfiles
-            // 
-            resources.ApplyResources(this.CMB_paramfiles, "CMB_paramfiles");
-            this.CMB_paramfiles.FormattingEnabled = true;
-            this.CMB_paramfiles.Name = "CMB_paramfiles";
-            this.CMB_paramfiles.SelectedIndexChanged += new System.EventHandler(this.CMB_paramfiles_SelectedIndexChanged);
-            // 
             // BUT_reset_params
             // 
             resources.ApplyResources(this.BUT_reset_params, "BUT_reset_params");
@@ -145,12 +122,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             this.BUT_reset_params.TextColorNotEnabled = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(87)))), ((int)(((byte)(4)))));
             this.BUT_reset_params.UseVisualStyleBackColor = true;
             this.BUT_reset_params.Click += new System.EventHandler(this.BUT_reset_params_Click);
-            // 
-            // txt_search
-            // 
-            resources.ApplyResources(this.txt_search, "txt_search");
-            this.txt_search.Name = "txt_search";
-            this.txt_search.TextChanged += new System.EventHandler(this.txt_search_TextChanged);
             // 
             // label2
             // 
@@ -221,6 +192,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             dataGridViewCellStyle1.SelectionForeColor = System.Drawing.SystemColors.HighlightText;
             dataGridViewCellStyle1.WrapMode = System.Windows.Forms.DataGridViewTriState.True;
             this.Params.ColumnHeadersDefaultCellStyle = dataGridViewCellStyle1;
+            resources.ApplyResources(this.Params, "Params");
             this.Params.Columns.AddRange(new System.Windows.Forms.DataGridViewColumn[] {
             this.Command,
             this.Value,
@@ -237,7 +209,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             dataGridViewCellStyle3.SelectionForeColor = System.Drawing.SystemColors.HighlightText;
             dataGridViewCellStyle3.WrapMode = System.Windows.Forms.DataGridViewTriState.True;
             this.Params.DefaultCellStyle = dataGridViewCellStyle3;
-            resources.ApplyResources(this.Params, "Params");
             this.Params.Name = "Params";
             dataGridViewCellStyle4.Alignment = System.Windows.Forms.DataGridViewContentAlignment.MiddleLeft;
             dataGridViewCellStyle4.BackColor = System.Drawing.SystemColors.ActiveCaption;
@@ -320,22 +291,24 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             // tableLayoutPanel1
             // 
             resources.ApplyResources(this.tableLayoutPanel1, "tableLayoutPanel1");
-            this.tableLayoutPanel1.Controls.Add(this.label2, 0, 11);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_refreshTable, 0, 16);
-            this.tableLayoutPanel1.Controls.Add(this.chk_none_default, 0, 14);
-            this.tableLayoutPanel1.Controls.Add(this.txt_search, 0, 12);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_load, 0, 0);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_save, 0, 1);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_rerequestparams, 0, 4);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_commitToFlash, 0, 6);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_writePIDS, 0, 3);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_reset_params, 0, 10);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_compare, 0, 5);
-            this.tableLayoutPanel1.Controls.Add(this.BUT_paramfileload, 0, 9);
-            this.tableLayoutPanel1.Controls.Add(this.label1, 0, 7);
-            this.tableLayoutPanel1.Controls.Add(this.CMB_paramfiles, 0, 8);
-            this.tableLayoutPanel1.Controls.Add(this.chk_modified, 0, 13);
+            this.tableLayoutPanel1.Controls.Add(this.BUT_load);
+            this.tableLayoutPanel1.Controls.Add(this.BUT_save);
+            this.tableLayoutPanel1.Controls.Add(this.BUT_rerequestparams);
+            this.tableLayoutPanel1.Controls.Add(this.BUT_writePIDS);
+            this.tableLayoutPanel1.Controls.Add(this.BUT_compare);
+            this.tableLayoutPanel1.Controls.Add(this.BUT_reset_params);
+            this.tableLayoutPanel1.Controls.Add(this.txt_search);
+            this.tableLayoutPanel1.Controls.Add(this.chk_modified);
+            this.tableLayoutPanel1.Controls.Add(this.chk_none_default);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
+            // 
+            // txt_search
+            // 
+            resources.ApplyResources(this.txt_search, "txt_search");
+            this.txt_search.Name = "txt_search";
+            this.txt_search.PlaceholderColor = System.Drawing.Color.Gray;
+            this.txt_search.PlaceholderText = "Search";
+            this.txt_search.TextChanged += new System.EventHandler(this.txt_search_TextChanged);
             // 
             // ConfigRawParams
             // 
@@ -363,18 +336,15 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         private Controls.MyButton BUT_load;
         private Controls.MyDataGridView Params;
         private System.Windows.Forms.ToolTip toolTip1;
-        private System.Windows.Forms.Label label1;
-        private Controls.MyButton BUT_paramfileload;
-        private System.Windows.Forms.ComboBox CMB_paramfiles;
         private Controls.MyButton BUT_reset_params;
-        private System.Windows.Forms.TextBox txt_search;
+        private MissionPlanner.Controls.PlaceholderTextBox txt_search;
         private System.Windows.Forms.Label label2;
         private MyButton BUT_commitToFlash;
         private System.Windows.Forms.CheckBox chk_modified;
         private MyButton BUT_refreshTable;
         private System.Windows.Forms.CheckBox chk_none_default;
         private System.Windows.Forms.SplitContainer splitContainer1;
-        private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
+        private System.Windows.Forms.FlowLayoutPanel tableLayoutPanel1;
         private System.Windows.Forms.TreeView treeView1;
         private MyButton but_collapse;
         private System.Windows.Forms.DataGridViewTextBoxColumn Command;

@@ -32,14 +32,19 @@ namespace MissionPlanner.GCSViews
             this.bindingSourceHud = new System.Windows.Forms.BindingSource(this.components);
             this.contextMenuStripactionstab = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.customizeToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
-            this.multiLineToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.tabControlactions = new System.Windows.Forms.TabControl();
             this.tabQuick = new System.Windows.Forms.TabPage();
             this.tableLayoutPanelQuick = new System.Windows.Forms.TableLayoutPanel();
             this.quickView6 = new MissionPlanner.Controls.QuickView();
             this.contextMenuStripQuickView = new System.Windows.Forms.ContextMenuStrip(this.components);
+            this.editQuickViewToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.setViewCountToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.undockToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.toolStripSeparatorMove = new System.Windows.Forms.ToolStripSeparator();
+            this.moveLeftToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.moveRightToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.moveUpToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
+            this.moveDownToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.bindingSourceQuickTab = new System.Windows.Forms.BindingSource(this.components);
             this.quickView5 = new MissionPlanner.Controls.QuickView();
             this.quickView4 = new MissionPlanner.Controls.QuickView();
@@ -47,6 +52,7 @@ namespace MissionPlanner.GCSViews
             this.quickView2 = new MissionPlanner.Controls.QuickView();
             this.quickView1 = new MissionPlanner.Controls.QuickView();
             this.tabActions = new System.Windows.Forms.TabPage();
+            this.panelActionsSpacer = new System.Windows.Forms.Panel();
             this.tableLayoutPanel1 = new System.Windows.Forms.TableLayoutPanel();
             this.BUT_SendMSG = new MissionPlanner.Controls.MyButton();
             this.BUT_abortland = new MissionPlanner.Controls.MyButton();
@@ -60,6 +66,7 @@ namespace MissionPlanner.GCSViews
             this.CMB_setwp = new System.Windows.Forms.ComboBox();
             this.BUT_ARM = new MissionPlanner.Controls.MyButton();
             this.BUT_mountmode = new MissionPlanner.Controls.MyButton();
+            this.BUT_Reboot = new MissionPlanner.Controls.MyButton();
             this.BUT_joystick = new MissionPlanner.Controls.MyButton();
             this.BUT_RAWSensor = new MissionPlanner.Controls.MyButton();
             this.BUT_Homealt = new MissionPlanner.Controls.MyButton();
@@ -72,7 +79,18 @@ namespace MissionPlanner.GCSViews
             this.BUT_quickauto = new MissionPlanner.Controls.MyButton();
             this.BUT_setmode = new MissionPlanner.Controls.MyButton();
             this.tabPagemessages = new System.Windows.Forms.TabPage();
+            this.messagesList1 = new MissionPlanner.Controls.MessagesList();
             this.txt_messagebox = new System.Windows.Forms.TextBox();
+            this.tabParams = new System.Windows.Forms.TabPage();
+            this.configRawParams1 = new MissionPlanner.GCSViews.ConfigurationView.ConfigRawParams();
+            this.tabVideo = new System.Windows.Forms.TabPage();
+            this.flightPlannerVideoOptions1 = new MissionPlanner.Controls.FlightPlannerVideoOptions();
+            this.tabTuning = new System.Windows.Forms.TabPage();
+            this.configArduplane1 = new MissionPlanner.GCSViews.ConfigurationView.ConfigArduplane();
+            this.configArducopter1 = new MissionPlanner.GCSViews.ConfigurationView.ConfigArducopter();
+            this.configArdurover1 = new MissionPlanner.GCSViews.ConfigurationView.ConfigArdurover();
+            this.tabInspector = new System.Windows.Forms.TabPage();
+            this.mavlinkInspectorControl1 = new MissionPlanner.Controls.MAVLinkInspectorControl();
             this.tabActionsSimple = new System.Windows.Forms.TabPage();
             this.myButton1 = new MissionPlanner.Controls.MyButton();
             this.myButton2 = new MissionPlanner.Controls.MyButton();
@@ -192,7 +210,9 @@ namespace MissionPlanner.GCSViews
             this.panel_persistent = new System.Windows.Forms.Panel();
             this.tableMap = new System.Windows.Forms.TableLayoutPanel();
             this.splitContainer1 = new System.Windows.Forms.SplitContainer();
+            this.splitContainer2 = new System.Windows.Forms.SplitContainer();
             this.zg1 = new ZedGraph.ZedGraphControl();
+            this.configRawParams2 = new MissionPlanner.GCSViews.ConfigurationView.ConfigRawParams();
             this.contextMenuStripMap = new System.Windows.Forms.ContextMenuStrip(this.components);
             this.goHereToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
             this.flyToHereAltToolStripMenuItem = new System.Windows.Forms.ToolStripMenuItem();
@@ -234,6 +254,7 @@ namespace MissionPlanner.GCSViews
             this.coords1 = new MissionPlanner.Controls.Coords();
             this.CHK_autopan = new System.Windows.Forms.CheckBox();
             this.CB_tuning = new System.Windows.Forms.CheckBox();
+            this.CB_params = new System.Windows.Forms.CheckBox();
             this.ZedGraphTimer = new System.Windows.Forms.Timer(this.components);
             this.toolTip1 = new System.Windows.Forms.ToolTip(this.components);
             this.openScriptDialog = new System.Windows.Forms.OpenFileDialog();
@@ -259,6 +280,10 @@ namespace MissionPlanner.GCSViews
             this.tabActions.SuspendLayout();
             this.tableLayoutPanel1.SuspendLayout();
             this.tabPagemessages.SuspendLayout();
+            this.tabParams.SuspendLayout();
+            this.tabVideo.SuspendLayout();
+            this.tabTuning.SuspendLayout();
+            this.tabInspector.SuspendLayout();
             this.tabActionsSimple.SuspendLayout();
             this.tabPagePreFlight.SuspendLayout();
             this.tabGauges.SuspendLayout();
@@ -289,6 +314,10 @@ namespace MissionPlanner.GCSViews
             this.splitContainer1.Panel1.SuspendLayout();
             this.splitContainer1.Panel2.SuspendLayout();
             this.splitContainer1.SuspendLayout();
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).BeginInit();
+            this.splitContainer2.Panel1.SuspendLayout();
+            this.splitContainer2.Panel2.SuspendLayout();
+            this.splitContainer2.SuspendLayout();
             this.contextMenuStripMap.SuspendLayout();
             ((System.ComponentModel.ISupportInitialize)(this.Zoomlevel)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.TRK_zoom)).BeginInit();
@@ -572,29 +601,27 @@ namespace MissionPlanner.GCSViews
             // contextMenuStripactionstab
             // 
             this.contextMenuStripactionstab.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
-            this.customizeToolStripMenuItem,
-            this.multiLineToolStripMenuItem});
+            this.customizeToolStripMenuItem});
             this.contextMenuStripactionstab.Name = "contextMenuStripactionstab";
             resources.ApplyResources(this.contextMenuStripactionstab, "contextMenuStripactionstab");
-            // 
+            //
             // customizeToolStripMenuItem
-            // 
+            //
             this.customizeToolStripMenuItem.Name = "customizeToolStripMenuItem";
             resources.ApplyResources(this.customizeToolStripMenuItem, "customizeToolStripMenuItem");
             this.customizeToolStripMenuItem.Click += new System.EventHandler(this.customizeToolStripMenuItem_Click);
             // 
-            // multiLineToolStripMenuItem
-            // 
-            this.multiLineToolStripMenuItem.Name = "multiLineToolStripMenuItem";
-            resources.ApplyResources(this.multiLineToolStripMenuItem, "multiLineToolStripMenuItem");
-            this.multiLineToolStripMenuItem.Click += new System.EventHandler(this.multiLineToolStripMenuItem_Click);
-            // 
             // tabControlactions
             // 
             this.tabControlactions.ContextMenuStrip = this.contextMenuStripactionstab;
+            this.tabControlactions.DrawMode = System.Windows.Forms.TabDrawMode.OwnerDrawFixed;
             this.tabControlactions.Controls.Add(this.tabQuick);
             this.tabControlactions.Controls.Add(this.tabActions);
             this.tabControlactions.Controls.Add(this.tabPagemessages);
+            this.tabControlactions.Controls.Add(this.tabParams);
+            this.tabControlactions.Controls.Add(this.tabVideo);
+            this.tabControlactions.Controls.Add(this.tabTuning);
+            this.tabControlactions.Controls.Add(this.tabInspector);
             this.tabControlactions.Controls.Add(this.tabActionsSimple);
             this.tabControlactions.Controls.Add(this.tabPagePreFlight);
             this.tabControlactions.Controls.Add(this.tabGauges);
@@ -645,24 +672,70 @@ namespace MissionPlanner.GCSViews
             this.quickView6.DoubleClick += new System.EventHandler(this.quickView_DoubleClick);
             // 
             // contextMenuStripQuickView
-            // 
+            //
             this.contextMenuStripQuickView.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
+            this.editQuickViewToolStripMenuItem,
             this.setViewCountToolStripMenuItem,
-            this.undockToolStripMenuItem});
+            this.undockToolStripMenuItem,
+            this.toolStripSeparatorMove,
+            this.moveLeftToolStripMenuItem,
+            this.moveRightToolStripMenuItem,
+            this.moveUpToolStripMenuItem,
+            this.moveDownToolStripMenuItem});
             this.contextMenuStripQuickView.Name = "contextMenuStripQuickView";
             resources.ApplyResources(this.contextMenuStripQuickView, "contextMenuStripQuickView");
-            // 
+            this.contextMenuStripQuickView.Opening += new System.ComponentModel.CancelEventHandler(this.contextMenuStripQuickView_Opening);
+            //
+            // editQuickViewToolStripMenuItem
+            //
+            this.editQuickViewToolStripMenuItem.Name = "editQuickViewToolStripMenuItem";
+            this.editQuickViewToolStripMenuItem.Text = "Edit";
+            this.editQuickViewToolStripMenuItem.Click += new System.EventHandler(this.editQuickViewToolStripMenuItem_Click);
+            //
             // setViewCountToolStripMenuItem
-            // 
+            //
             this.setViewCountToolStripMenuItem.Name = "setViewCountToolStripMenuItem";
             resources.ApplyResources(this.setViewCountToolStripMenuItem, "setViewCountToolStripMenuItem");
             this.setViewCountToolStripMenuItem.Click += new System.EventHandler(this.setViewCountToolStripMenuItem_Click);
-            // 
+            //
             // undockToolStripMenuItem
-            // 
+            //
             this.undockToolStripMenuItem.Name = "undockToolStripMenuItem";
             resources.ApplyResources(this.undockToolStripMenuItem, "undockToolStripMenuItem");
             this.undockToolStripMenuItem.Click += new System.EventHandler(this.undockDockToolStripMenuItem_Click);
+            //
+            // toolStripSeparatorMove
+            //
+            this.toolStripSeparatorMove.Name = "toolStripSeparatorMove";
+            resources.ApplyResources(this.toolStripSeparatorMove, "toolStripSeparatorMove");
+            //
+            // moveLeftToolStripMenuItem
+            //
+            this.moveLeftToolStripMenuItem.Name = "moveLeftToolStripMenuItem";
+            this.moveLeftToolStripMenuItem.Text = "Move Left";
+            resources.ApplyResources(this.moveLeftToolStripMenuItem, "moveLeftToolStripMenuItem");
+            this.moveLeftToolStripMenuItem.Click += new System.EventHandler(this.moveLeftToolStripMenuItem_Click);
+            //
+            // moveRightToolStripMenuItem
+            //
+            this.moveRightToolStripMenuItem.Name = "moveRightToolStripMenuItem";
+            this.moveRightToolStripMenuItem.Text = "Move Right";
+            resources.ApplyResources(this.moveRightToolStripMenuItem, "moveRightToolStripMenuItem");
+            this.moveRightToolStripMenuItem.Click += new System.EventHandler(this.moveRightToolStripMenuItem_Click);
+            //
+            // moveUpToolStripMenuItem
+            //
+            this.moveUpToolStripMenuItem.Name = "moveUpToolStripMenuItem";
+            this.moveUpToolStripMenuItem.Text = "Move Up";
+            resources.ApplyResources(this.moveUpToolStripMenuItem, "moveUpToolStripMenuItem");
+            this.moveUpToolStripMenuItem.Click += new System.EventHandler(this.moveUpToolStripMenuItem_Click);
+            //
+            // moveDownToolStripMenuItem
+            //
+            this.moveDownToolStripMenuItem.Name = "moveDownToolStripMenuItem";
+            this.moveDownToolStripMenuItem.Text = "Move Down";
+            resources.ApplyResources(this.moveDownToolStripMenuItem, "moveDownToolStripMenuItem");
+            this.moveDownToolStripMenuItem.Click += new System.EventHandler(this.moveDownToolStripMenuItem_Click);
             // 
             // bindingSourceQuickTab
             // 
@@ -736,14 +809,29 @@ namespace MissionPlanner.GCSViews
             // 
             // tabActions
             // 
+            this.tabActions.Controls.Add(this.panelActionsSpacer);
             this.tabActions.Controls.Add(this.tableLayoutPanel1);
             resources.ApplyResources(this.tabActions, "tabActions");
             this.tabActions.Name = "tabActions";
+            this.tabActions.Padding = new System.Windows.Forms.Padding(4);
             this.tabActions.UseVisualStyleBackColor = true;
             // 
             // tableLayoutPanel1
             // 
             resources.ApplyResources(this.tableLayoutPanel1, "tableLayoutPanel1");
+            this.tableLayoutPanel1.Anchor = ((System.Windows.Forms.AnchorStyles)(((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Left) 
+            | System.Windows.Forms.AnchorStyles.Right)));
+            this.tableLayoutPanel1.AutoScroll = true;
+            this.tableLayoutPanel1.ColumnStyles.Clear();
+            this.tableLayoutPanel1.ColumnCount = 5;
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 20F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 20F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 20F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 20F));
+            this.tableLayoutPanel1.ColumnStyles.Add(new System.Windows.Forms.ColumnStyle(System.Windows.Forms.SizeType.Percent, 20F));
+            this.tableLayoutPanel1.AutoSize = true;
+            this.tableLayoutPanel1.AutoSizeMode = System.Windows.Forms.AutoSizeMode.GrowAndShrink;
+            this.tableLayoutPanel1.Dock = System.Windows.Forms.DockStyle.Top;
             this.tableLayoutPanel1.Controls.Add(this.BUT_SendMSG, 2, 4);
             this.tableLayoutPanel1.Controls.Add(this.BUT_abortland, 4, 4);
             this.tableLayoutPanel1.Controls.Add(this.modifyandSetLoiterRad, 4, 2);
@@ -756,6 +844,7 @@ namespace MissionPlanner.GCSViews
             this.tableLayoutPanel1.Controls.Add(this.CMB_setwp, 0, 1);
             this.tableLayoutPanel1.Controls.Add(this.BUT_ARM, 3, 3);
             this.tableLayoutPanel1.Controls.Add(this.BUT_mountmode, 1, 3);
+            this.tableLayoutPanel1.Controls.Add(this.BUT_Reboot, 1, 4);
             this.tableLayoutPanel1.Controls.Add(this.BUT_joystick, 2, 3);
             this.tableLayoutPanel1.Controls.Add(this.BUT_RAWSensor, 3, 2);
             this.tableLayoutPanel1.Controls.Add(this.BUT_Homealt, 3, 0);
@@ -768,6 +857,15 @@ namespace MissionPlanner.GCSViews
             this.tableLayoutPanel1.Controls.Add(this.BUT_quickauto, 2, 0);
             this.tableLayoutPanel1.Controls.Add(this.BUT_setmode, 1, 2);
             this.tableLayoutPanel1.Name = "tableLayoutPanel1";
+            this.tableLayoutPanel1.Padding = new System.Windows.Forms.Padding(0, 0, 0, 8);
+            // 
+            // panelActionsSpacer
+            // 
+            this.panelActionsSpacer.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.panelActionsSpacer.Location = new System.Drawing.Point(4, 4);
+            this.panelActionsSpacer.Name = "panelActionsSpacer";
+            this.panelActionsSpacer.Size = new System.Drawing.Size(0, 0);
+            this.panelActionsSpacer.TabIndex = 79;
             // 
             // BUT_SendMSG
             // 
@@ -794,12 +892,14 @@ namespace MissionPlanner.GCSViews
             this.BUT_abortland.Click += new System.EventHandler(this.BUT_abortland_Click);
             // 
             // modifyandSetLoiterRad
-            // 
+            //
             resources.ApplyResources(this.modifyandSetLoiterRad, "modifyandSetLoiterRad");
-            this.modifyandSetLoiterRad.ButtonText = "Set Loiter Rad";
+            this.modifyandSetLoiterRad.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.modifyandSetLoiterRad.Margin = new System.Windows.Forms.Padding(4);
+            this.modifyandSetLoiterRad.ButtonText = "Set Loit Rad";
             this.modifyandSetLoiterRad.DecimalPlaces = 0;
             this.modifyandSetLoiterRad.Increment = new decimal(new int[] {
-            1,
+            10,
             0,
             0,
             0});
@@ -865,9 +965,11 @@ namespace MissionPlanner.GCSViews
             this.BUT_resumemis.Click += new System.EventHandler(this.BUT_resumemis_Click);
             // 
             // modifyandSetAlt
-            // 
+            //
             resources.ApplyResources(this.modifyandSetAlt, "modifyandSetAlt");
-            this.modifyandSetAlt.ButtonText = "Change Alt";
+            this.modifyandSetAlt.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.modifyandSetAlt.Margin = new System.Windows.Forms.Padding(4);
+            this.modifyandSetAlt.ButtonText = "Set Alt";
             this.modifyandSetAlt.DecimalPlaces = 1;
             this.modifyandSetAlt.Increment = new decimal(new int[] {
             1,
@@ -893,9 +995,11 @@ namespace MissionPlanner.GCSViews
             this.modifyandSetAlt.Click += new System.EventHandler(this.modifyandSetAlt_Click);
             // 
             // modifyandSetSpeed
-            // 
+            //
             resources.ApplyResources(this.modifyandSetSpeed, "modifyandSetSpeed");
-            this.modifyandSetSpeed.ButtonText = "Change Speed";
+            this.modifyandSetSpeed.Anchor = ((System.Windows.Forms.AnchorStyles)((System.Windows.Forms.AnchorStyles.Left | System.Windows.Forms.AnchorStyles.Right)));
+            this.modifyandSetSpeed.Margin = new System.Windows.Forms.Padding(4);
+            this.modifyandSetSpeed.ButtonText = "Set Speed";
             this.modifyandSetSpeed.DecimalPlaces = 1;
             this.modifyandSetSpeed.Increment = new decimal(new int[] {
             1,
@@ -955,7 +1059,18 @@ namespace MissionPlanner.GCSViews
             this.toolTip1.SetToolTip(this.BUT_mountmode, resources.GetString("BUT_mountmode.ToolTip"));
             this.BUT_mountmode.UseVisualStyleBackColor = true;
             this.BUT_mountmode.Click += new System.EventHandler(this.BUT_mountmode_Click);
-            // 
+            //
+            // BUT_Reboot
+            //
+            this.BUT_Reboot.ColorMouseDown = System.Drawing.Color.Empty;
+            this.BUT_Reboot.ColorMouseOver = System.Drawing.Color.Empty;
+            this.BUT_Reboot.ColorNotEnabled = System.Drawing.Color.Empty;
+            resources.ApplyResources(this.BUT_Reboot, "BUT_Reboot");
+            this.BUT_Reboot.Name = "BUT_Reboot";
+            this.BUT_Reboot.TextColorNotEnabled = System.Drawing.Color.FromArgb(((int)(((byte)(64)))), ((int)(((byte)(87)))), ((int)(((byte)(4)))));
+            this.BUT_Reboot.UseVisualStyleBackColor = true;
+            this.BUT_Reboot.Click += new System.EventHandler(this.BUT_Reboot_Click);
+            //
             // BUT_joystick
             // 
             this.BUT_joystick.ColorMouseDown = System.Drawing.Color.Empty;
@@ -1080,19 +1195,91 @@ namespace MissionPlanner.GCSViews
             this.toolTip1.SetToolTip(this.BUT_setmode, resources.GetString("BUT_setmode.ToolTip"));
             this.BUT_setmode.UseVisualStyleBackColor = true;
             this.BUT_setmode.Click += new System.EventHandler(this.BUT_setmode_Click);
-            // 
+            //
             // tabPagemessages
-            // 
-            this.tabPagemessages.Controls.Add(this.txt_messagebox);
+            //
+            this.tabPagemessages.Controls.Add(this.messagesList1);
             resources.ApplyResources(this.tabPagemessages, "tabPagemessages");
             this.tabPagemessages.Name = "tabPagemessages";
             this.tabPagemessages.UseVisualStyleBackColor = true;
-            // 
+            //
+            // messagesList1
+            //
+            this.messagesList1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.messagesList1.Name = "messagesList1";
+            //
             // txt_messagebox
-            // 
+            //
             resources.ApplyResources(this.txt_messagebox, "txt_messagebox");
             this.txt_messagebox.Name = "txt_messagebox";
-            // 
+            //
+            // tabParams
+            //
+            this.tabParams.Controls.Add(this.configRawParams1);
+            resources.ApplyResources(this.tabParams, "tabParams");
+            this.tabParams.Name = "tabParams";
+            this.tabParams.UseVisualStyleBackColor = true;
+            //
+            // configRawParams1
+            //
+            resources.ApplyResources(this.configRawParams1, "configRawParams1");
+            this.configRawParams1.Name = "configRawParams1";
+            //
+            // tabVideo
+            //
+            this.tabVideo.Controls.Add(this.flightPlannerVideoOptions1);
+            resources.ApplyResources(this.tabVideo, "tabVideo");
+            this.tabVideo.Name = "tabVideo";
+            this.tabVideo.UseVisualStyleBackColor = true;
+            //
+            // flightPlannerVideoOptions1
+            //
+            resources.ApplyResources(this.flightPlannerVideoOptions1, "flightPlannerVideoOptions1");
+            this.flightPlannerVideoOptions1.Name = "flightPlannerVideoOptions1";
+            //
+            // tabTuning
+            //
+            this.tabTuning.Controls.Add(this.configArduplane1);
+            this.tabTuning.Controls.Add(this.configArducopter1);
+            this.tabTuning.Controls.Add(this.configArdurover1);
+            resources.ApplyResources(this.tabTuning, "tabTuning");
+            this.tabTuning.Name = "tabTuning";
+            this.tabTuning.UseVisualStyleBackColor = true;
+            //
+            // configArduplane1
+            //
+            this.configArduplane1.Dock = System.Windows.Forms.DockStyle.Fill;
+            resources.ApplyResources(this.configArduplane1, "configArduplane1");
+            this.configArduplane1.Name = "configArduplane1";
+            this.configArduplane1.Visible = false;
+            //
+            // configArducopter1
+            //
+            this.configArducopter1.Dock = System.Windows.Forms.DockStyle.Fill;
+            resources.ApplyResources(this.configArducopter1, "configArducopter1");
+            this.configArducopter1.Name = "configArducopter1";
+            this.configArducopter1.Visible = false;
+            //
+            // configArdurover1
+            //
+            this.configArdurover1.Dock = System.Windows.Forms.DockStyle.Fill;
+            resources.ApplyResources(this.configArdurover1, "configArdurover1");
+            this.configArdurover1.Name = "configArdurover1";
+            this.configArdurover1.Visible = false;
+            //
+            // tabInspector
+            //
+            this.tabInspector.Controls.Add(this.mavlinkInspectorControl1);
+            resources.ApplyResources(this.tabInspector, "tabInspector");
+            this.tabInspector.Name = "tabInspector";
+            this.tabInspector.UseVisualStyleBackColor = true;
+            //
+            // mavlinkInspectorControl1
+            //
+            this.mavlinkInspectorControl1.Dock = System.Windows.Forms.DockStyle.Fill;
+            resources.ApplyResources(this.mavlinkInspectorControl1, "mavlinkInspectorControl1");
+            this.mavlinkInspectorControl1.Name = "mavlinkInspectorControl1";
+            //
             // tabActionsSimple
             // 
             this.tabActionsSimple.Controls.Add(this.myButton1);
@@ -2479,11 +2666,11 @@ namespace MissionPlanner.GCSViews
             this.splitContainer1.Name = "splitContainer1";
             // 
             // splitContainer1.Panel1
-            // 
-            this.splitContainer1.Panel1.Controls.Add(this.zg1);
-            // 
+            //
+            this.splitContainer1.Panel1.Controls.Add(this.splitContainer2);
+            //
             // splitContainer1.Panel2
-            // 
+            //
             this.splitContainer1.Panel2.ContextMenuStrip = this.contextMenuStripMap;
             this.splitContainer1.Panel2.Controls.Add(this.label1);
             this.splitContainer1.Panel2.Controls.Add(this.but_disablejoystick);
@@ -2499,9 +2686,22 @@ namespace MissionPlanner.GCSViews
             this.splitContainer1.Panel2.Controls.Add(this.lbl_sats);
             this.splitContainer1.Panel2.Controls.Add(this.gMapControl1);
             this.splitContainer1.Panel2.Resize += new System.EventHandler(this.splitContainer1_Panel2_Resize);
-            // 
+            //
+            // splitContainer2
+            //
+            resources.ApplyResources(this.splitContainer2, "splitContainer2");
+            this.splitContainer2.Name = "splitContainer2";
+            //
+            // splitContainer2.Panel1
+            //
+            this.splitContainer2.Panel1.Controls.Add(this.zg1);
+            //
+            // splitContainer2.Panel2
+            //
+            this.splitContainer2.Panel2.Controls.Add(this.configRawParams2);
+            //
             // zg1
-            // 
+            //
             resources.ApplyResources(this.zg1, "zg1");
             this.zg1.Name = "zg1";
             this.zg1.ScrollGrace = 0D;
@@ -2512,7 +2712,12 @@ namespace MissionPlanner.GCSViews
             this.zg1.ScrollMinY = 0D;
             this.zg1.ScrollMinY2 = 0D;
             this.zg1.DoubleClick += new System.EventHandler(this.zg1_DoubleClick);
-            // 
+            //
+            // configRawParams2
+            //
+            resources.ApplyResources(this.configRawParams2, "configRawParams2");
+            this.configRawParams2.Name = "configRawParams2";
+            //
             // contextMenuStripMap
             // 
             this.contextMenuStripMap.Items.AddRange(new System.Windows.Forms.ToolStripItem[] {
@@ -2674,7 +2879,7 @@ namespace MissionPlanner.GCSViews
             this.gimbalVideoPopOutToolStripMenuItem.Name = "gimbalVideoPopOutToolStripMenuItem";
             resources.ApplyResources(this.gimbalVideoPopOutToolStripMenuItem, "gimbalVideoPopOutToolStripMenuItem");
             this.gimbalVideoPopOutToolStripMenuItem.Click += new System.EventHandler(this.gimbalVideoPopOutToolStripMenuItem_Click);
-            // 
+            //
             // label1
             // 
             resources.ApplyResources(this.label1, "label1");
@@ -2784,19 +2989,23 @@ namespace MissionPlanner.GCSViews
             this.label4.Tag = "custom";
             // 
             // lbl_hdop
-            // 
+            //
             resources.ApplyResources(this.lbl_hdop, "lbl_hdop");
-            this.lbl_hdop.DataBindings.Add(new System.Windows.Forms.Binding("Text", this.bindingSource1, "gpshdop", true, System.Windows.Forms.DataSourceUpdateMode.Never, null, "hdop: 0.0"));
+            this.lbl_hdop.DataBindings.Add(new System.Windows.Forms.Binding("Text", this.bindingSource1, "gpshdopvdop", true, System.Windows.Forms.DataSourceUpdateMode.Never));
             this.lbl_hdop.Name = "lbl_hdop";
             this.lbl_hdop.resize = true;
+            this.lbl_hdop.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lbl_hdop.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.toolTip1.SetToolTip(this.lbl_hdop, resources.GetString("lbl_hdop.ToolTip"));
-            // 
+            //
             // lbl_sats
-            // 
+            //
             resources.ApplyResources(this.lbl_sats, "lbl_sats");
             this.lbl_sats.DataBindings.Add(new System.Windows.Forms.Binding("Text", this.bindingSource1, "satcount", true, System.Windows.Forms.DataSourceUpdateMode.Never, null, "Sats: 0"));
             this.lbl_sats.Name = "lbl_sats";
             this.lbl_sats.resize = true;
+            this.lbl_sats.Font = new System.Drawing.Font("Microsoft Sans Serif", 10F, System.Drawing.FontStyle.Regular, System.Drawing.GraphicsUnit.Point, ((byte)(0)));
+            this.lbl_sats.TextAlign = System.Drawing.ContentAlignment.MiddleCenter;
             this.toolTip1.SetToolTip(this.lbl_sats, resources.GetString("lbl_sats.ToolTip"));
             // 
             // gMapControl1
@@ -2837,6 +3046,7 @@ namespace MissionPlanner.GCSViews
             this.panel1.Controls.Add(this.coords1);
             this.panel1.Controls.Add(this.CHK_autopan);
             this.panel1.Controls.Add(this.CB_tuning);
+            this.panel1.Controls.Add(this.CB_params);
             this.panel1.Name = "panel1";
             // 
             // coords1
@@ -2870,7 +3080,15 @@ namespace MissionPlanner.GCSViews
             this.toolTip1.SetToolTip(this.CB_tuning, resources.GetString("CB_tuning.ToolTip"));
             this.CB_tuning.UseVisualStyleBackColor = true;
             this.CB_tuning.CheckedChanged += new System.EventHandler(this.CB_tuning_CheckedChanged);
-            // 
+            //
+            // CB_params
+            //
+            resources.ApplyResources(this.CB_params, "CB_params");
+            this.CB_params.Name = "CB_params";
+            this.toolTip1.SetToolTip(this.CB_params, resources.GetString("CB_params.ToolTip"));
+            this.CB_params.UseVisualStyleBackColor = true;
+            this.CB_params.CheckedChanged += new System.EventHandler(this.CB_params_CheckedChanged);
+            //
             // ZedGraphTimer
             // 
             this.ZedGraphTimer.Tick += new System.EventHandler(this.ZedGraphTimer_Tick);
@@ -2928,6 +3146,10 @@ namespace MissionPlanner.GCSViews
             this.tableLayoutPanel1.PerformLayout();
             this.tabPagemessages.ResumeLayout(false);
             this.tabPagemessages.PerformLayout();
+            this.tabParams.ResumeLayout(false);
+            this.tabVideo.ResumeLayout(false);
+            this.tabTuning.ResumeLayout(false);
+            this.tabInspector.ResumeLayout(false);
             this.tabActionsSimple.ResumeLayout(false);
             this.tabPagePreFlight.ResumeLayout(false);
             this.tabGauges.ResumeLayout(false);
@@ -2962,6 +3184,10 @@ namespace MissionPlanner.GCSViews
             this.tableLayoutPanel2.ResumeLayout(false);
             this.tableMap.ResumeLayout(false);
             this.tableMap.PerformLayout();
+            this.splitContainer2.Panel1.ResumeLayout(false);
+            this.splitContainer2.Panel2.ResumeLayout(false);
+            ((System.ComponentModel.ISupportInitialize)(this.splitContainer2)).EndInit();
+            this.splitContainer2.ResumeLayout(false);
             this.splitContainer1.Panel1.ResumeLayout(false);
             this.splitContainer1.Panel2.ResumeLayout(false);
             this.splitContainer1.Panel2.PerformLayout();
@@ -2988,6 +3214,7 @@ namespace MissionPlanner.GCSViews
         private Controls.HUD hud1;
         private Controls.MyButton BUT_clear_track;
         private System.Windows.Forms.CheckBox CB_tuning;
+        private System.Windows.Forms.CheckBox CB_params;
         private Controls.MyButton BUT_RAWSensor;
         private Controls.MyButton BUTactiondo;
         private Controls.MyButton BUTrestartmission;
@@ -3024,6 +3251,8 @@ namespace MissionPlanner.GCSViews
         private Label lbl_logpercent;
         private System.Windows.Forms.ToolStripMenuItem pointCameraHereToolStripMenuItem;
         private System.Windows.Forms.SplitContainer splitContainer1;
+        private System.Windows.Forms.SplitContainer splitContainer2;
+        private ConfigurationView.ConfigRawParams configRawParams2;
         private Controls.MyLabel lbl_hdop;
         private Controls.MyLabel lbl_sats;
         private Controls.HSI Gheading;
@@ -3097,13 +3326,25 @@ namespace MissionPlanner.GCSViews
         private Controls.MyButton BUT_matlab;
         private System.Windows.Forms.ComboBox CMB_mountmode;
         private Controls.MyButton BUT_mountmode;
+        private Controls.MyButton BUT_Reboot;
         public Controls.WindDir windDir1;
         private Controls.MyButton but_bintolog;
         private Controls.MyButton but_dflogtokml;
         private Controls.MyButton BUT_DFMavlink;
         public System.Windows.Forms.TabPage tabPagemessages;
+        private Controls.MessagesList messagesList1;
         private System.Windows.Forms.TextBox txt_messagebox;
         private System.Windows.Forms.Timer Messagetabtimer;
+        public System.Windows.Forms.TabPage tabParams;
+        private ConfigurationView.ConfigRawParams configRawParams1;
+        public System.Windows.Forms.TabPage tabVideo;
+        private Controls.FlightPlannerVideoOptions flightPlannerVideoOptions1;
+        public System.Windows.Forms.TabPage tabTuning;
+        private ConfigurationView.ConfigArduplane configArduplane1;
+        private ConfigurationView.ConfigArducopter configArducopter1;
+        private ConfigurationView.ConfigArdurover configArdurover1;
+        public System.Windows.Forms.TabPage tabInspector;
+        private Controls.MAVLinkInspectorControl mavlinkInspectorControl1;
         public System.Windows.Forms.TabPage tabActionsSimple;
         private Controls.MyButton myButton1;
         private Controls.MyButton myButton2;
@@ -3132,6 +3373,7 @@ namespace MissionPlanner.GCSViews
         private Controls.ModifyandSet modifyandSetLoiterRad;
         private System.Windows.Forms.ToolStripMenuItem onOffCameraOverlapToolStripMenuItem;
         private System.Windows.Forms.ContextMenuStrip contextMenuStripQuickView;
+        private System.Windows.Forms.ToolStripMenuItem editQuickViewToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem setViewCountToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem setGStreamerSourceToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem setEKFHomeHereToolStripMenuItem;
@@ -3164,9 +3406,15 @@ namespace MissionPlanner.GCSViews
         private System.Windows.Forms.ToolStripMenuItem poiatcoordsToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem flyToCoordsToolStripMenuItem;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel1;
+        private System.Windows.Forms.Panel panelActionsSpacer;
         private System.Windows.Forms.TableLayoutPanel tableLayoutPanel2;
         private System.Windows.Forms.ToolStripMenuItem setBatteryCellCountToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem undockToolStripMenuItem;
+        private System.Windows.Forms.ToolStripSeparator toolStripSeparatorMove;
+        private System.Windows.Forms.ToolStripMenuItem moveLeftToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem moveRightToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem moveUpToolStripMenuItem;
+        private System.Windows.Forms.ToolStripMenuItem moveDownToolStripMenuItem;
         private System.Windows.Forms.Button ALT_btn;
         private System.Windows.Forms.Button STBY_btn;
         private System.Windows.Forms.Button ON_btn;
@@ -3184,7 +3432,6 @@ namespace MissionPlanner.GCSViews
         private System.Windows.Forms.TextBox NACp_tb;
         private System.Windows.Forms.TextBox NIC_tb;
         private ToolStripMenuItem showIconsToolStripMenuItem;
-        private ToolStripMenuItem multiLineToolStripMenuItem;
         private Controls.MyButton BUT_SendMSG;
         public Panel panel_persistent;
         public System.Windows.Forms.TabPage tabAuxFunction;

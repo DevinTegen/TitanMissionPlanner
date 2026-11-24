@@ -263,18 +263,18 @@ namespace MissionPlanner
 
         // orientation - rads
         [DisplayFieldName("roll.Field")]
-        [DisplayText("Roll (deg)")]
+        [DisplayText("Roll (°)")]
         [GroupText("Attitude")]
         public float roll { get; set; }
 
         [GroupText("Attitude")]
         [DisplayFieldName("pitch.Field")]
-        [DisplayText("Pitch (deg)")]
+        [DisplayText("Pitch (°)")]
         public float pitch { get; set; }
 
         [GroupText("Attitude")]
         [DisplayFieldName("yaw.Field")]
-        [DisplayText("Yaw (deg)")]
+        [DisplayText("Heading (°)")]
         public float yaw
         {
             get => _yaw;
@@ -289,17 +289,17 @@ namespace MissionPlanner
 
         [GroupText("Attitude")]
         [DisplayFieldName("SSA.Field")]
-        [DisplayText("SSA (deg)")]
+        [DisplayText("SSA (°)")]
         public float SSA { get; set; }
 
         [GroupText("Attitude")]
         [DisplayFieldName("AOA.Field")]
-        [DisplayText("AOA (deg)")]
+        [DisplayText("AOA (°)")]
         public float AOA { get; set; }
 
         [GroupText("Position")]
         [DisplayFieldName("groundcourse.Field")]
-        [DisplayText("GroundCourse (deg)")]
+        [DisplayText("GroundCourse (°)")]
         public float groundcourse
         {
             get => _groundcourse;
@@ -396,6 +396,15 @@ namespace MissionPlanner
         [GroupText("Position")]
         public float gpshdop { get; set; }
 
+        [DisplayFieldName("gpsvdop.Field")]
+        [DisplayText("Gps VDOP")]
+        [GroupText("Position")]
+        public float gpsvdop { get; set; }
+
+        [DisplayText("HDOP/VDOP")]
+        [GroupText("Position")]
+        public string gpshdopvdop => $"HDOP: {gpshdop:0.0} VDOP: {gpsvdop:0.0}";
+
         [DisplayFieldName("satcount.Field")]
         [DisplayText("Sat Count")]
         [GroupText("Position")]
@@ -421,7 +430,7 @@ namespace MissionPlanner
         public float gpshdg_acc { get; private set; }
 
         [DisplayFieldName("gpsyaw.Field")]
-        [DisplayText("GPS Yaw (deg)")]
+        [DisplayText("GPS Heading (°)")]
         [GroupText("Position")]
         public float gpsyaw { get; private set; }
 
@@ -446,6 +455,10 @@ namespace MissionPlanner
         [GroupText("Position")]
         public float gpshdop2 { get; set; }
 
+        [DisplayText("Gps VDOP2")]
+        [GroupText("Position")]
+        public float gpsvdop2 { get; set; }
+
         [DisplayText("Sat Count2")]
         [GroupText("Position")]
         public float satcount2 { get; set; }
@@ -453,7 +466,7 @@ namespace MissionPlanner
         [GroupText("Position")]
         public float groundspeed2 { get; set; }
 
-        [DisplayText("GroundCourse2 (deg)")]
+        [DisplayText("GroundCourse2 (°)")]
         [DisplayFieldName("groundcourse2.Field")]
         [GroupText("Position")]
         public float groundcourse2 { get; set; }
@@ -476,7 +489,7 @@ namespace MissionPlanner
         public float gpshdg_acc2 { get; private set; }
 
         [DisplayFieldName("gpsyaw2.Field")]
-        [DisplayText("GPS Yaw (deg)")]
+        [DisplayText("GPS2 Heading (°)")]
         [GroupText("Position")]
         public float gpsyaw2 { get; private set; }
 
@@ -1017,7 +1030,7 @@ namespace MissionPlanner
 
         [GroupText("Attitude")]
         [DisplayFieldName("crit_AOA.Field")]
-        [DisplayText("Crit AOA (deg)")]
+        [DisplayText("Crit AOA (°)")]
         public float crit_AOA
         {
             get
@@ -1071,22 +1084,22 @@ namespace MissionPlanner
         //nav state
         [GroupText("NAV")]
         [DisplayFieldName("nav_roll.Field")]
-        [DisplayText("Roll Target (deg)")]
+        [DisplayText("Roll Target (°)")]
         public float nav_roll { get; set; }
 
         [GroupText("NAV")]
         [DisplayFieldName("nav_pitch.Field")]
-        [DisplayText("Pitch Target (deg)")]
+        [DisplayText("Pitch Target (°)")]
         public float nav_pitch { get; set; }
 
         [GroupText("NAV")]
         [DisplayFieldName("nav_bearing.Field")]
-        [DisplayText("Bearing Target (deg)")]
+        [DisplayText("Bearing Target (°)")]
         public float nav_bearing { get; set; }
 
         [GroupText("NAV")]
         [DisplayFieldName("target_bearing.Field")]
-        [DisplayText("Bearing Target (deg)")]
+        [DisplayText("Bearing Target (°)")]
         public float target_bearing { get; set; }
 
         [GroupText("NAV")]
@@ -1114,7 +1127,7 @@ namespace MissionPlanner
 
         [GroupText("NAV")]
         [DisplayFieldName("ber_error.Field")]
-        [DisplayText("Bearing Error (deg)")]
+        [DisplayText("Bearing Error (°)")]
         public float ber_error
         {
             get => target_bearing - yaw;
@@ -1257,7 +1270,7 @@ namespace MissionPlanner
 
         [JsonIgnore]
         [IgnoreDataMember]
-        public List<(DateTime time, string message)> messages { get; set; } = new List<(DateTime, string)>();
+        public List<(DateTime time, string message, byte severity)> messages { get; set; } = new List<(DateTime, string, byte)>();
 
         /// <summary>
         /// a message that originates from the mav
@@ -1410,7 +1423,9 @@ namespace MissionPlanner
                     return;
                 }
 
-                battery_usedmah += value * 1000.0 * (datetime - _lastcurrent).TotalHours;
+                var hoursElapsed = (datetime - _lastcurrent).TotalHours;
+                battery_usedmah += value * 1000.0 * hoursElapsed;
+                battery_usedwh += battery_voltage * value * hoursElapsed;
                 _current = value;
                 _lastcurrent = datetime;
             }
@@ -1478,6 +1493,16 @@ namespace MissionPlanner
         public double battery_mahperkm => battery_usedmah / (distTraveled / 1000.0f);
 
         [GroupText("Battery")]
+        [DisplayFieldName("battery_usedwh.Field")]
+        [DisplayText("Bat used (Wh)")]
+        public double battery_usedwh { get; set; }
+
+        [GroupText("Battery")]
+        [DisplayFieldName("battery_whperkm.Field")]
+        [DisplayText("Bat efficiency (Wh/km)")]
+        public double battery_whperkm => battery_usedwh / (distTraveled / 1000.0f);
+
+        [GroupText("Battery")]
         [DisplayFieldName("battery_kmleft.Field")]
         [DisplayText("Bat km left EST (km)")]
         public double battery_kmleft => (100.0f / (100.0f - battery_remaining) * battery_usedmah - battery_usedmah) /
@@ -1485,7 +1510,7 @@ namespace MissionPlanner
 
         [GroupText("Battery")]
         [DisplayFieldName("battery_usedmah.Field")]
-        [DisplayText("Bat used EST (mah)")]
+        [DisplayText("Bat used (mah)")]
         public double battery_usedmah { get; set; }
 
         [GroupText("Battery")] public double battery_cell1 { get; set; }
@@ -1825,7 +1850,7 @@ namespace MissionPlanner
         }
 
         [DisplayFieldName("ELToMAV.Field")]
-        [DisplayText("Elevation to Mav (deg)")]
+        [DisplayText("Elevation to Mav (°)")]
         [GroupText("Position")]
         public float ELToMAV
         {
@@ -1845,7 +1870,7 @@ namespace MissionPlanner
         }
 
         [DisplayFieldName("AZToMAV.Field")]
-        [DisplayText("Bearing to Mav (deg)")]
+        [DisplayText("Bearing to Mav (°)")]
         [GroupText("Position")]
         public float AZToMAV
         {
@@ -2564,7 +2589,7 @@ namespace MissionPlanner
                             wind_vel = highlatency.windspeed / 5.0f;
                             wind_dir = highlatency.wind_heading * 2;
                             gpshdop = highlatency.eph;
-                            // epv
+                            gpsvdop = highlatency.epv;
                             airspeed1_temp = highlatency.temperature_air;
                             climbrate = highlatency.climb_rate * 10;
                             battery_remaining = highlatency.battery;
@@ -3369,6 +3394,9 @@ namespace MissionPlanner
                             if (gps.eph != ushort.MaxValue)
                                 gpshdop = (float)Math.Round(gps.eph / 100.0, 2);
 
+                            if (gps.epv != ushort.MaxValue)
+                                gpsvdop = (float)Math.Round(gps.epv / 100.0, 2);
+
                             if (gps.satellites_visible != byte.MaxValue)
                                 satcount = gps.satellites_visible;
 
@@ -3413,6 +3441,7 @@ namespace MissionPlanner
 
                             gpsstatus2 = gps.fix_type;
                             gpshdop2 = (float)Math.Round(gps.eph / 100.0, 2);
+                            gpsvdop2 = (float)Math.Round(gps.epv / 100.0, 2);
 
                             satcount2 = gps.satellites_visible;
 
@@ -4482,7 +4511,7 @@ namespace MissionPlanner
                 lastekfstatusreport = null;
                 mode = "Unknown";
                 _mode = 99999;
-                messages = new List<(DateTime time, string message)>();
+                messages = new List<(DateTime time, string message, byte severity)>();
                 useLocation = false;
                 rateattitude = rateattitudebackup;
                 rateposition = ratepositionbackup;
@@ -4649,6 +4678,34 @@ namespace MissionPlanner
             return desc;
         }
 
+        // Return the name of a customfield variable from its description.
+        // Allocate the customfield if necessary
+        public static string GetCustomField(string desc)
+        {
+            if(custom_field_names.ContainsValue(desc))
+            {
+                // Find the key for this value
+                foreach (var pair in custom_field_names)
+                {
+                    if (pair.Value == desc)
+                    {
+                        return pair.Key;
+                    }
+                }
+            }
+            // Allocate a new custom field
+            for (int i = 0; i <= 19; i++)
+            {
+                string key = "customfield" + i.ToString();
+                if (!custom_field_names.ContainsKey(key))
+                {
+                    custom_field_names.Add(key, desc);
+                    return key;
+                }
+            }
+            // This should be unreachable, unless we run out of customfields to allocate
+            return "";
+        }
 
         /// <summary>
         ///     use for main serial port only

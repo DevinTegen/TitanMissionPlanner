@@ -1554,8 +1554,9 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             this.lblUnitWarning.Name = "lblUnitWarning";
             // 
             // ConfigArducopter
-            // 
+            //
             resources.ApplyResources(this, "$this");
+            this.AutoScroll = true;
             this.Controls.Add(this.lblUnitWarning);
             this.Controls.Add(this.groupBox8);
             this.Controls.Add(this.groupBox9);

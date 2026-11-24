@@ -154,6 +154,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             SetCheckboxFromConfig("speechaltenabled", CHK_speechaltwarning);
             SetCheckboxFromConfig("speecharmenabled", CHK_speecharmdisarm);
             SetCheckboxFromConfig("speechlowspeedenabled", CHK_speechlowspeed);
+            SetCheckboxFromConfig("speechadsbenabled", CHK_speechadsb);
             SetCheckboxFromConfig("beta_updates", CHK_beta);
             SetCheckboxFromConfig("password_protect", CHK_Password);
             SetCheckboxFromConfig("showairports", CHK_showairports);
@@ -395,6 +396,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                 CHK_speechmode.Visible = true;
                 CHK_speecharmdisarm.Visible = true;
                 CHK_speechlowspeed.Visible = true;
+                CHK_speechadsb.Visible = true;
             }
             else
             {
@@ -406,6 +408,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                 CHK_speechmode.Visible = false;
                 CHK_speecharmdisarm.Visible = false;
                 CHK_speechlowspeed.Visible = false;
+                CHK_speechadsb.Visible = false;
             }
         }
 
@@ -832,6 +835,13 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                 Settings.Instance["speechdisarm"] = speechstring;
             }
         }
+
+        private void CHK_speechadsb_CheckedChanged(object sender, EventArgs e)
+        {
+            if (startup)
+                return;
+            Settings.Instance["speechadsbenabled"] = ((CheckBox)sender).Checked.ToString();
+        }   
 
         private void BUT_Vario_Click(object sender, EventArgs e)
         {

@@ -10,6 +10,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -17,7 +18,6 @@ using System.Threading.Tasks;
 using System.Timers;
 using System.Windows.Forms;
 using org.mariuszgromada.math.mxparser;
-using System.Runtime.CompilerServices;
 
 namespace MissionPlanner.GCSViews.ConfigurationView
 {
@@ -32,7 +32,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         private static Hashtable tooltips = new Hashtable();
         // Changes made to the params between writing to the copter
         private readonly Hashtable _changes = new Hashtable();
-        private static List<GitHubContent.FileInfo> paramfiles;
         // ?
         internal static bool startup = true;
         internal static List<DataGridViewRow> rowlist = new List<DataGridViewRow>();
@@ -41,6 +40,9 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         private string filterPrefix = "";
 
         private NaturalStringComparer naturalsorter = new NaturalStringComparer();
+
+        // Allow override of initial tree collapsed state (used by MainV2 instances)
+        public bool? InitialTreeCollapsed { get; set; } = null;
 
         public ConfigRawParams()
         {
@@ -61,10 +63,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             BUT_commitToFlash.Visible = MainV2.DisplayConfiguration.displayParamCommitButton;
             BUT_refreshTable.Visible = Settings.Instance.GetBoolean("SlowMachine", false);
 
-            CMB_paramfiles.Enabled = false;
-            BUT_paramfileload.Enabled = false;
-            ThreadPool.QueueUserWorkItem(updatedefaultlist);
-
             Params.Enabled = false;
 
             foreach (DataGridViewColumn col in Params.Columns)
@@ -82,14 +80,13 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                 }
             }
             splitContainer1.SplitterDistance = Settings.Instance.GetInt32("rawparam_splitterdistance", 180);
-            splitContainer1.Panel1Collapsed = Settings.Instance.GetBoolean("rawparam_panel1collapsed", false);
+            // Use InitialTreeCollapsed if set, otherwise use saved setting (default false)
+            splitContainer1.Panel1Collapsed = InitialTreeCollapsed ?? Settings.Instance.GetBoolean("rawparam_panel1collapsed", false);
             but_collapse.Text = splitContainer1.Panel1Collapsed ? ">" : "<";
 
             processToScreen();
 
             Params.Enabled = true;
-
-            Common.MessageShowAgain(Strings.RawParamWarning, Strings.RawParamWarningi);
 
             startup = false;
 
@@ -265,50 +262,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
 
             int error = 0;
             bool reboot = false;
-            int maxdisplay = 20;
-
-            if (temp.Count > 0 && temp.Count <= maxdisplay)
-            {
-                // List to track successfully saved parameters
-                List<string> savedParams = new List<string>();
-
-                foreach (string value in temp)
-                {
-                    if (MainV2.comPort.BaseStream == null || !MainV2.comPort.BaseStream.IsOpen)
-                    {
-                        CustomMessageBox.Show("You are not connected", Strings.ERROR);
-                        return;
-                    }
-
-                    // Get the previous value of the param to display in 'param change info'
-                    // (a better way would be to get the value somewhere from inside the code, insted of recieving it over mavlink)
-                    string previousValue = MainV2.comPort.MAV.param[value].ToString();
-                    // new value of param
-                    double newValue = (double)_changes[value];
-
-                    // Add the parameter, previous and new values to the list for 'param change info'
-                    // remember, the 'value' here is key of param, while prev and new are actual values of param
-                    savedParams.Add($"{value}: {previousValue} -> {newValue}");
-                }
-
-                // Join the saved parameters list to a string
-                string savedParamsMessage = string.Join(Environment.NewLine, savedParams);
-
-                // Ask the user for confirmation showing detailed changes
-                if (CustomMessageBox.Show($"You are about to change {savedParams.Count} parameters. Please review the changes below:\n\n{savedParamsMessage}\n\nDo you want to proceed?", "Confirm Parameter Changes",
-        CustomMessageBox.MessageBoxButtons.YesNo, CustomMessageBox.MessageBoxIcon.Information) !=
-    CustomMessageBox.DialogResult.Yes)
-                    return;
-            }
-            else if (temp.Count > maxdisplay)
-            {
-                // Ask the user for confirmation without listing individual changes
-                if (CustomMessageBox.Show($"You are about to change {temp.Count} parameters. Are you sure you want to proceed?", "Confirm Parameter Changes",
-            CustomMessageBox.MessageBoxButtons.YesNo, CustomMessageBox.MessageBoxIcon.Information) !=
-        CustomMessageBox.DialogResult.Yes)
-                    return;
-            }
-
 
             foreach (string value in temp)
             {
@@ -362,13 +315,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                     CustomMessageBox.Show("Set " + value + " Failed");
                 }
             }
-
-            if (error > 0)
-                CustomMessageBox.Show("Not all parameters successfully saved.", "Saved");
-            else if (temp.Count>0)
-                CustomMessageBox.Show($"{temp.Count} parameters successfully saved.", "Saved");
-            else
-                CustomMessageBox.Show("No parameters were changed.", "No changes");
 
             //Check if reboot is required
             if (reboot)
@@ -580,78 +526,39 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                 rowlist.Clear();
 
                 bool has_defaults = false;
+                var fav_params = Settings.Instance.GetList("fav_params");
+                var firmware = MainV2.comPort.MAV.cs.firmware.ToString();
 
-                Parallel.ForEach(list, value =>
+                // Create rows with minimal data first (fast)
+                foreach (var value in list)
                 {
-                    if (value == null || value == "")
-                        return;
+                    if (string.IsNullOrEmpty(value))
+                        continue;
 
                     var row = new DataGridViewRow() { Height = 36 };
-                    lock (rowlist)
-                        rowlist.Add(row);
                     row.CreateCells(Params);
                     row.Cells[Command.Index].Value = value;
                     row.Cells[Value.Index].Value = MainV2.comPort.MAV.param[value].ToString();
-                    var fav_params = Settings.Instance.GetList("fav_params");
                     row.Cells[Fav.Index].Value = fav_params.Contains(value);
 
-                    if (MainV2.comPort.MAV.param[value].default_value.HasValue) {
+                    if (MainV2.comPort.MAV.param[value].default_value.HasValue)
+                    {
                         has_defaults = true;
                         row.Cells[Default_value.Index].Value = MainV2.comPort.MAV.param[value].default_value_to_string();
-                    } else {
+                    }
+                    else
+                    {
                         row.Cells[Default_value.Index].Value = "NaN";
                     }
-                    try
-                    {
-                        var metaDataDescription = ParameterMetaDataRepository.GetParameterMetaData(value,
-                            ParameterMetaDataConstants.Description, MainV2.comPort.MAV.cs.firmware.ToString());
-                        if (!string.IsNullOrEmpty(metaDataDescription))
-                        {
-                            row.Cells[Command.Index].ToolTipText = AddNewLinesForTooltip(metaDataDescription);
-                            row.Cells[Value.Index].ToolTipText = AddNewLinesForTooltip(metaDataDescription);
 
-                            var range = ParameterMetaDataRepository.GetParameterMetaData(value,
-                                ParameterMetaDataConstants.Range, MainV2.comPort.MAV.cs.firmware.ToString());
-                            var options = ParameterMetaDataRepository.GetParameterMetaData(value,
-                                ParameterMetaDataConstants.Values, MainV2.comPort.MAV.cs.firmware.ToString());
-                            var units = ParameterMetaDataRepository.GetParameterMetaData(value,
-                                ParameterMetaDataConstants.Units, MainV2.comPort.MAV.cs.firmware.ToString());
-
-                            row.Cells[Units.Index].Value = units;
-                            row.Cells[Options.Index].Value = (range + "\n" + options.Replace(",", "\n")).Trim();
-                            if (options.Length > 0) row.Cells[Options.Index].ToolTipText = options.Replace(',', '\n');
-                            int N = options.Count(c => c.Equals(','));
-                            if (N > 50)
-                            {
-                                int columns = (N - 1) / 50 + 1;
-                                StringBuilder ans = new StringBuilder();
-                                var opts = options.Split(',');
-                                int i = 0;
-                                while(true)
-                                {
-                                    for(int j=0; j<columns; j++)
-                                    {
-                                        ans.Append(opts[i] + ", ");
-                                        i++;
-                                        if (i >= N) break;
-                                    }
-                                    if (i >= N) break;
-                                    ans.Append("\n");
-                                }
-                                row.Cells[Options.Index].ToolTipText = ans.ToInvariantString();
-                            }
-                            row.Cells[Desc.Index].Value = metaDataDescription;
-                            row.Cells[Desc.Index].ToolTipText = AddNewLinesForTooltip(metaDataDescription);
-                        }
-                    }
-                    catch (Exception ex)
-                    {
-                        log.Error(ex);
-                    }
-                });
+                    rowlist.Add(row);
+                }
 
                 Default_value.Visible = has_defaults;
                 chk_none_default.Visible = has_defaults;
+
+                // Load metadata in background after grid is displayed
+                Task.Run(() => LoadMetadataAsync(firmware));
             }
             //update values in rowlist
             if (!startup)
@@ -665,6 +572,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
 
             log.Info("about to add all");
 
+            Params.SuspendLayout();
             Params.Visible = false;
 
             Params.Rows.AddRange(rowlist.ToArray());
@@ -676,6 +584,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             Params.Sort(Params.Columns[Command.Index], ListSortDirection.Ascending);
 
             Params.Visible = true;
+            Params.ResumeLayout();
 
             if (splitContainer1.Panel1Collapsed == false)
             {
@@ -683,6 +592,64 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             }
 
             log.Info("Done");
+        }
+
+        private void LoadMetadataAsync(string firmware)
+        {
+            try
+            {
+                foreach (DataGridViewRow row in rowlist.ToArray())
+                {
+                    try
+                    {
+                        var value = row.Cells[Command.Index].Value?.ToString();
+                        if (string.IsNullOrEmpty(value))
+                            continue;
+
+                        var metaDataDescription = ParameterMetaDataRepository.GetParameterMetaData(value,
+                            ParameterMetaDataConstants.Description, firmware);
+                        if (!string.IsNullOrEmpty(metaDataDescription))
+                        {
+                            var range = ParameterMetaDataRepository.GetParameterMetaData(value,
+                                ParameterMetaDataConstants.Range, firmware);
+                            var options = ParameterMetaDataRepository.GetParameterMetaData(value,
+                                ParameterMetaDataConstants.Values, firmware);
+                            var units = ParameterMetaDataRepository.GetParameterMetaData(value,
+                                ParameterMetaDataConstants.Units, firmware);
+
+                            // Update cells on UI thread
+                            if (Params.IsHandleCreated && !Params.IsDisposed)
+                            {
+                                Params.BeginInvoke((Action)(() =>
+                                {
+                                    try
+                                    {
+                                        if (row.Index >= 0)
+                                        {
+                                            row.Cells[Command.Index].ToolTipText = AddNewLinesForTooltip(metaDataDescription);
+                                            row.Cells[Value.Index].ToolTipText = AddNewLinesForTooltip(metaDataDescription);
+                                            row.Cells[Units.Index].Value = units;
+                                            row.Cells[Options.Index].Value = (range + "\n" + options.Replace(",", "\n")).Trim();
+                                            if (options.Length > 0) row.Cells[Options.Index].ToolTipText = options.Replace(',', '\n');
+                                            row.Cells[Desc.Index].Value = metaDataDescription;
+                                            row.Cells[Desc.Index].ToolTipText = AddNewLinesForTooltip(metaDataDescription);
+                                        }
+                                    }
+                                    catch { }
+                                }));
+                            }
+                        }
+                    }
+                    catch (Exception ex)
+                    {
+                        log.Error(ex);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                log.Error("LoadMetadataAsync error", ex);
+            }
         }
 
         private void BuildTree()
@@ -857,35 +824,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
                 args.SortResult = fav1.CompareTo(fav2) * (Params.SortOrder == SortOrder.Ascending ? -1 : 1);
         }
 
-        private void updatedefaultlist(object crap)
-        {
-            try
-            {
-                if (paramfiles == null)
-                {
-                    string subdir = "";
-                    if (MainV2.comPort.MAV.param.ContainsKey("Q_ENABLE") &&
-                        MainV2.comPort.MAV.param["Q_ENABLE"].Value >= 1.0)
-                    {
-                        subdir = "QuadPlanes/";
-                    }
-                    paramfiles = GitHubContent.GetDirContent("ardupilot", "ardupilot", "/Tools/Frame_params/" + subdir, ".param");
-                }
-
-                BeginInvoke((Action)delegate
-               {
-                   CMB_paramfiles.DataSource = paramfiles.ToArray();
-                   CMB_paramfiles.DisplayMember = "name";
-                   CMB_paramfiles.Enabled = true;
-                   BUT_paramfileload.Enabled = true;
-               });
-            }
-            catch (Exception ex)
-            {
-                log.Error(ex);
-            }
-        }
-
         void filterList(string searchfor)
         {
             DateTime start = DateTime.Now;
@@ -941,40 +879,6 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             Params.Visible = true;
 
             log.InfoFormat("Filter: {0}ms", (DateTime.Now - start).TotalMilliseconds);
-        }
-
-        private void BUT_paramfileload_Click(object sender, EventArgs e)
-        {
-            var filepath = Settings.GetUserDataDirectory() + CMB_paramfiles.Text;
-
-            try
-            {
-                var data = GitHubContent.GetFileContent("ArduPilot", "ardupilot",
-                    ((GitHubContent.FileInfo)CMB_paramfiles.SelectedValue).path);
-
-                File.WriteAllBytes(filepath, data);
-
-                var param2 = ParamFile.loadParamFile(filepath);
-
-                Form paramCompareForm = new ParamCompare(Params, MainV2.comPort.MAV.param, param2);
-
-                ThemeManager.ApplyThemeTo(paramCompareForm);
-                if (paramCompareForm.ShowDialog() == DialogResult.OK)
-                {
-                    CustomMessageBox.Show("Loaded parameters, please make sure you write them!", "Loaded");
-                }
-
-                // no activate the user needs to click write.
-                //this.Activate();
-            }
-            catch (Exception ex)
-            {
-                CustomMessageBox.Show("Failed to load file.\n" + ex);
-            }
-        }
-
-        private void CMB_paramfiles_SelectedIndexChanged(object sender, EventArgs e)
-        {
         }
 
         private void BUT_reset_params_Click(object sender, EventArgs e)

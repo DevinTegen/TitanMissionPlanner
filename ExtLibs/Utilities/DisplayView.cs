@@ -62,6 +62,10 @@ namespace MissionPlanner.Utilities
         public Boolean displayTransponderTab { get; set; }
         public Boolean displayAuxFunctionTab { get; set; }
         public Boolean displayPayloadTab { get; set; }
+        public Boolean displayParamsTab { get; set; }
+        public Boolean displayVideoTab { get; set; }
+        public Boolean displayTuningTab { get; set; }
+        public Boolean displayInspectorTab { get; set; }
 
         //flight plan
         public Boolean displayRallyPointsMenu { get; set; }
@@ -147,7 +151,7 @@ namespace MissionPlanner.Utilities
             displayPreFlightTab = true;
             displayAdvActionsTab = false;
             displaySimpleActionsTab = true;
-            displayGaugesTab = true;
+            displayGaugesTab = false;
             displayStatusTab = false;
             displayServoTab = false;
             displayScriptsTab = false;
@@ -157,6 +161,10 @@ namespace MissionPlanner.Utilities
             displayTransponderTab = true;
             displayAuxFunctionTab = true;
             displayPayloadTab = true;
+            displayParamsTab = true;
+            displayVideoTab = true;
+            displayTuningTab = true;
+            displayInspectorTab = true;
 
             //flight plan
             displayRallyPointsMenu = true;
@@ -280,7 +288,7 @@ namespace MissionPlanner.Utilities
                 displayPreFlightTab = true,
                 displayAdvActionsTab = false,
                 displaySimpleActionsTab = true,
-                displayGaugesTab = true,
+                displayGaugesTab = false,
                 displayStatusTab = false,
                 displayServoTab = false,
                 displayScriptsTab = false,
@@ -290,6 +298,10 @@ namespace MissionPlanner.Utilities
                 displayTransponderTab = true,
                 displayAuxFunctionTab = true,
                 displayPayloadTab = true,
+                displayParamsTab = true,
+                displayVideoTab = true,
+                displayTuningTab = true,
+                displayInspectorTab = true,
 
                 //flight plan
                 displayRallyPointsMenu = true,
@@ -367,7 +379,7 @@ namespace MissionPlanner.Utilities
                 displayPreFlightTab = true,
                 displayAdvActionsTab = true,
                 displaySimpleActionsTab = false,
-                displayGaugesTab = true,
+                displayGaugesTab = false,
                 displayStatusTab = true,
                 displayServoTab = true,
                 displayScriptsTab = true,
@@ -377,6 +389,10 @@ namespace MissionPlanner.Utilities
                 displayTransponderTab = true,
                 displayAuxFunctionTab = true,
                 displayPayloadTab = true,
+                displayParamsTab = true,
+                displayVideoTab = true,
+                displayTuningTab = true,
+                displayInspectorTab = true,
 
                 //flight plan
                 displayRallyPointsMenu = true,
