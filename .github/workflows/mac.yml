@@ -56,7 +56,8 @@ jobs:
 
   buildOSX:
     name: Build OSX
-    runs-on: macos-15
+    # Intel runner: arm64 macOS runners are often capacity-limited; the app is built universal either way
+    runs-on: macos-15-intel
 
     steps:
       - uses: actions/checkout@v2
