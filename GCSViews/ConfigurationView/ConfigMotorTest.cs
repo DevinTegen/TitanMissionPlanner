@@ -40,12 +40,20 @@ namespace MissionPlanner.GCSViews.ConfigurationView
         }
         private _layouts motor_layout;
 
+        // motor positions (Front Right, ...) for the labels, the diagram and the order wizard
+        private System.Collections.Generic.List<MotorInfo> motorInfos;
+        private MotorDiagram motorDiagram;
+
         public void Activate()
         {
             var x = 6;
             var y = 75;
 
             motormax = this.get_motormax();
+
+            motorInfos = null;
+            if (MotorLayout.TryGetFrame(MainV2.comPort.MAV.param, out var frameClass, out var frameType))
+                motorInfos = MotorLayout.Load(frameClass, frameType);
 
             MyButton but;
             for (var a = 1; a <= motormax; a++)
@@ -58,7 +66,18 @@ namespace MissionPlanner.GCSViews.ConfigurationView
 
                 groupBox1.Controls.Add(but);
 
-                if (motor_layout.motors != null)
+                var info = motorInfos?.Find(m => m.TestOrder == a);
+                if (info != null)
+                {
+                    // e.g. "Front Right - Motor 1 - CCW": what should spin for this test
+                    var lab = new Label();
+                    lab.Text = info.Position + " - Motor " + info.Number +
+                               (info.Rotation != "?" ? " - " + info.Rotation : "");
+                    lab.Location = new Point(x + 85, y + 5);
+                    lab.Width = 190;
+                    groupBox1.Controls.Add(lab);
+                }
+                else if (motor_layout.motors != null)
                 {
                     foreach (var motor in motor_layout.motors)
                     {
@@ -104,6 +123,34 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             but.Size = new Size(75, 37);
             but.Click += but_TestAllSeq;
             groupBox1.Controls.Add(but);
+
+            y += 39;
+
+            but = new MyButton();
+            but.Text = "Motor order wizard...";
+            but.Location = new Point(x, y);
+            but.Size = new Size(160, 37);
+            but.Click += but_MotorWizard;
+            but.Enabled = motorInfos != null && motorInfos.Count > 0;
+            groupBox1.Controls.Add(but);
+
+            // grow the box to fit the buttons on big frames
+            if (groupBox1.Height < y + 45)
+                groupBox1.Height = y + 45;
+
+            // top-down frame drawing to the right of the controls
+            if (motorDiagram == null)
+            {
+                motorDiagram = new MotorDiagram();
+                motorDiagram.Location = new Point(groupBox1.Right + 8, groupBox1.Top + 8);
+                motorDiagram.Size = new Size(340, 360);
+                Controls.Add(motorDiagram);
+                if (Width < motorDiagram.Right + 8)
+                    Width = motorDiagram.Right + 8;
+            }
+
+            motorDiagram.Motors = motorInfos;
+            motorDiagram.Caption = motorInfos == null ? "" : "Letters = motor test order";
 
             Utilities.ThemeManager.ApplyThemeTo(this);
         }
@@ -295,6 +342,7 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             {
                 var motor = (int)((MyButton)sender).Tag;
                 this.testMotor(motor, speed, time);
+                motorDiagram?.HighlightFor(motor, time);
             }
             catch (Exception ex)
             {
@@ -323,6 +371,20 @@ namespace MissionPlanner.GCSViews.ConfigurationView
             catch
             {
                 CustomMessageBox.Show(Strings.ErrorCommunicating + "\nMotor: " + motor, Strings.ERROR);
+            }
+        }
+
+        private void but_MotorWizard(object sender, EventArgs e)
+        {
+            if (motorInfos == null || motorInfos.Count == 0)
+            {
+                CustomMessageBox.Show("The frame layout for this FRAME_CLASS/FRAME_TYPE is not known.", Strings.ERROR);
+                return;
+            }
+
+            using (var wizard = new MotorOrderWizard(motorInfos))
+            {
+                wizard.ShowDialog(this);
             }
         }
 

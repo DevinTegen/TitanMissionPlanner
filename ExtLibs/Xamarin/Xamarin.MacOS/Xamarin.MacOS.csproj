@@ -168,6 +168,10 @@
     </PackageReference>
   </ItemGroup>
   <ItemGroup>
+    <Content Include="..\..\..\APMotorLayout.json">
+      <Link>APMotorLayout.json</Link>
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </Content>
     <Content Include="..\..\..\mavcmd.xml">
       <Link>mavcmd.xml</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
