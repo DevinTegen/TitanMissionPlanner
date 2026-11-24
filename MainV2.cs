@@ -735,6 +735,7 @@ namespace MissionPlanner
             _connectionControl.cmb_sysid.Click += cmb_sysid_Click;
 
             _connectionControl.ShowLinkStats += (sender, e) => ShowConnectionStatsForm();
+            SetupRebootButton();
             srtm.datadirectory = $"{Settings.GetDataDirectory()}srtm";
 
             try
@@ -2478,6 +2479,93 @@ namespace MissionPlanner
         /// <summary>
         /// Used to fix the icon status for unexpected unplugs etc...
         /// </summary>
+        /// <summary>
+        /// Top-bar "REBOOT" button: reboots the connected autopilot. Hidden while disconnected,
+        /// asks for confirmation, and refuses while the vehicle is armed.
+        /// </summary>
+        public ToolStripButton MenuReboot;
+
+        private void SetupRebootButton()
+        {
+            MenuReboot = new ToolStripButton
+            {
+                Name = "MenuReboot",
+                Text = "REBOOT",
+                ToolTipText = "Reboot the flight controller",
+                Image = CreateRebootIcon(Color.FromArgb(220, 220, 220)),
+                ImageScaling = ToolStripItemImageScaling.None,
+                TextImageRelation = TextImageRelation.ImageAboveText,
+                TextAlign = ContentAlignment.BottomCenter,
+                ForeColor = MenuConnect.ForeColor,
+                Font = MenuConnect.Font,
+                Margin = new Padding(0),
+                AutoSize = false,
+                Size = MenuConnect.Size,
+                Alignment = MenuConnect.Alignment,
+                Visible = false
+            };
+            MenuReboot.Click += MenuReboot_Click;
+            var index = MainMenu.Items.IndexOf(MenuConnect);
+            MainMenu.Items.Insert(index < 0 ? MainMenu.Items.Count : index, MenuReboot);
+        }
+
+        private static Bitmap CreateRebootIcon(Color colour)
+        {
+            const int size = 36;
+            var bmp = new Bitmap(size, size);
+            using (var g = Graphics.FromImage(bmp))
+            using (var pen = new Pen(colour, 3.5f))
+            using (var brush = new SolidBrush(colour))
+            {
+                g.SmoothingMode = System.Drawing.Drawing2D.SmoothingMode.AntiAlias;
+                var r = new RectangleF(6, 6, size - 12, size - 12);
+                // circular arrow with a gap at the top right
+                g.DrawArc(pen, r, -50, 300);
+                // arrow head at the end of the arc (-50 degrees)
+                var cx = size / 2f;
+                var cy = size / 2f;
+                var rad = r.Width / 2f;
+                var ang = -50 * Math.PI / 180.0;
+                var ex = (float)(cx + rad * Math.Cos(ang));
+                var ey = (float)(cy + rad * Math.Sin(ang));
+                g.FillPolygon(brush, new[]
+                {
+                    new PointF(ex + 6, ey - 1), new PointF(ex - 5, ey - 6), new PointF(ex - 1, ey + 6)
+                });
+            }
+
+            return bmp;
+        }
+
+        private void MenuReboot_Click(object sender, EventArgs e)
+        {
+            if (comPort?.BaseStream == null || !comPort.BaseStream.IsOpen)
+            {
+                CustomMessageBox.Show("Not connected to a vehicle.", "Reboot");
+                return;
+            }
+
+            if (comPort.MAV.cs.armed)
+            {
+                CustomMessageBox.Show("The vehicle is ARMED. Disarm before rebooting.", "Reboot");
+                return;
+            }
+
+            if (CustomMessageBox.Show("Reboot the flight controller now?\n\nThe connection will drop while it restarts.",
+                    "Reboot", MessageBoxButtons.YesNo) != (int)DialogResult.Yes)
+                return;
+
+            try
+            {
+                comPort.doReboot(false, true);
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex);
+                CustomMessageBox.Show(Strings.CommandFailed + "\n" + ex.Message, Strings.ERROR);
+            }
+        }
+
         private void UpdateConnectIcon()
         {
             if ((DateTime.UtcNow - connectButtonUpdate).TotalMilliseconds > 500)
@@ -2493,6 +2581,7 @@ namespace MissionPlanner
                             this.MenuConnect.Image.Tag = "Disconnect";
                             this.MenuConnect.Text = Strings.DISCONNECTc;
                             _connectionControl.IsConnected(true);
+                            if (MenuReboot != null) MenuReboot.Visible = true;
                         });
                     }
                 }
@@ -2506,6 +2595,7 @@ namespace MissionPlanner
                             this.MenuConnect.Image.Tag = "Connect";
                             this.MenuConnect.Text = Strings.CONNECTc;
                             _connectionControl.IsConnected(false);
+                            if (MenuReboot != null) MenuReboot.Visible = false;
                             if (_connectionStats != null)
                             {
                                 _connectionStats.StopUpdates();

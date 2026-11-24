@@ -944,6 +944,100 @@ namespace Xamarin.GCSViews
         private int zoomY;
         private long zoomDistance;
 
+        // ---- Mac trackpad (pinch / two-finger scroll) -------------------------------------------
+        // A Mac trackpad does not produce touch events, so a pinch arrives from AppKit as an NSEvent
+        // magnify gesture instead. The host (Xamarin.MacOS AppDelegate) forwards those here in canvas
+        // pixels, and they are fed through the same WM_GESTURE zoom path used for touch screens, so the
+        // map (or whatever control is under the cursor) zooms around the pointer.
+        private static bool trackpadZooming;
+        private static double trackpadScale = 1;
+        private static double trackpadScrollRemainder;
+        private const long TrackpadZoomBaseDistance = 1000;
+
+        private static bool TrackpadPoint(double px, double py, out int x, out int y)
+        {
+            x = y = 0;
+            var inst = Instance;
+            if (inst == null || inst.scale.Width <= 0 || inst.scale.Height <= 0)
+                return false;
+            x = (int)(px / inst.scale.Width);
+            y = (int)(py / inst.scale.Height);
+            return true;
+        }
+
+        /// <summary>pinch-to-zoom from a Mac trackpad; magnification is the NSEvent delta (0.1 = +10%)</summary>
+        public static void SendTrackpadZoom(double px, double py, double magnification, bool begin, bool end)
+        {
+            try
+            {
+                if (!TrackpadPoint(px, py, out var x, out var y))
+                    return;
+                // a touch-screen gesture in progress owns the gesture target
+                if (Instance.gesture)
+                    return;
+
+                XplatUIMine.PaintPending = true;
+
+                if (begin || !trackpadZooming)
+                {
+                    if (trackpadZooming)
+                        XplatUIMine.SendGesture(XplatUIMine.GID_END, 0, x, y, 0);
+                    trackpadScale = 1;
+                    XplatUIMine.SendGesture(XplatUIMine.GID_BEGIN, 0, x, y, 0);
+                    XplatUIMine.SendGesture(XplatUIMine.GID_ZOOM, XplatUIMine.GF_BEGIN, x, y,
+                        TrackpadZoomBaseDistance);
+                    trackpadZooming = true;
+                }
+
+                trackpadScale *= 1 + magnification;
+                trackpadScale = Math.Max(0.001, Math.Min(1000, trackpadScale));
+                var distance = Math.Max(1, (long)(TrackpadZoomBaseDistance * trackpadScale));
+
+                if (end)
+                {
+                    XplatUIMine.SendGesture(XplatUIMine.GID_ZOOM, XplatUIMine.GF_END, x, y, distance);
+                    XplatUIMine.SendGesture(XplatUIMine.GID_END, 0, x, y, 0);
+                    trackpadZooming = false;
+                }
+                else
+                {
+                    XplatUIMine.SendGesture(XplatUIMine.GID_ZOOM, 0, x, y, distance);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("SendTrackpadZoom " + ex);
+                trackpadZooming = false;
+            }
+        }
+
+        /// <summary>two-finger scroll / mouse wheel from macOS, as WM_MOUSEWHEEL notches under the pointer</summary>
+        public static void SendTrackpadScroll(double px, double py, double deltaY, bool precise)
+        {
+            try
+            {
+                if (!TrackpadPoint(px, py, out var x, out var y))
+                    return;
+
+                // trackpads report pixels (many small events), wheels report lines
+                trackpadScrollRemainder += precise ? deltaY * 5 : deltaY * 120;
+                var notches = (int)(trackpadScrollRemainder / 120);
+                if (notches == 0)
+                    return;
+                trackpadScrollRemainder -= notches * 120;
+
+                XplatUIMine.PaintPending = true;
+                var lparam = (IntPtr)((y << 16) | (x & 0xffff));
+                // the wheel goes to the control under the last mouse position
+                XplatUI.driver.SendMessage(IntPtr.Zero, Msg.WM_MOUSEMOVE, IntPtr.Zero, lparam);
+                XplatUI.driver.SendMessage(IntPtr.Zero, Msg.WM_MOUSEWHEEL, (IntPtr)((notches * 120) << 16), lparam);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("SendTrackpadScroll " + ex);
+            }
+        }
+
         // GID_ZOOM at the centre of the first two fingers, with the distance between them
         private void SendZoomGesture(int flags)
         {

@@ -30,6 +30,8 @@ namespace Xamarin.MacOS
             mainWindow.DidResize += MainWindow_DidResize;
             mainWindow.WillClose += MainWindow_WillClose;
             NSEvent.AddLocalMonitorForEventsMatchingMask(NSEventMask.KeyDown, KeyboardEventHandler);
+            // trackpad pinch-to-zoom and two-finger scroll
+            NSEvent.AddLocalMonitorForEventsMatchingMask(NSEventMask.EventMagnify | NSEventMask.ScrollWheel, TrackpadEventHandler);
 
             Test.BlueToothDevice = new BTDevice();
             Test.UsbDevices = new USBDevices();
@@ -53,6 +55,46 @@ namespace Xamarin.MacOS
             Console.WriteLine(keyEvent.KeyCode);
 
             return keyEvent;
+        }
+
+        private NSEvent TrackpadEventHandler(NSEvent ev)
+        {
+            try
+            {
+                if (ev.Window != mainWindow || mainWindow.ContentView == null)
+                    return ev;
+
+                // window points -> top-left origin canvas pixels (what the Skia surface uses)
+                var view = mainWindow.ContentView;
+                var p = view.ConvertPointFromView(ev.LocationInWindow, null);
+                var backing = (double)mainWindow.BackingScaleFactor;
+                var px = (double)p.X * backing;
+                var py = (view.IsFlipped ? (double)p.Y : (double)(view.Frame.Height - p.Y)) * backing;
+
+                if (ev.Type == NSEventType.Magnify)
+                {
+                    var phase = ev.Phase;
+                    var begin = (phase & NSEventPhase.Began) != 0;
+                    var end = (phase & (NSEventPhase.Ended | NSEventPhase.Cancelled)) != 0;
+                    WinForms.SendTrackpadZoom(px, py, (double)ev.Magnification, begin, end);
+                    return null; // handled
+                }
+
+                if (ev.Type == NSEventType.ScrollWheel)
+                {
+                    // ignore the inertial "momentum" tail so lists stop when the fingers lift
+                    if (ev.MomentumPhase != NSEventPhase.None)
+                        return null;
+                    WinForms.SendTrackpadScroll(px, py, (double)ev.ScrollingDeltaY, ev.HasPreciseScrollingDeltas);
+                    return null; // handled
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("TrackpadEventHandler " + ex);
+            }
+
+            return ev;
         }
 
         private void MainWindow_WillClose(object sender, EventArgs e)
