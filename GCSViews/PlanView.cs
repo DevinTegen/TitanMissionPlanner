@@ -58,7 +58,9 @@ namespace MissionPlanner.GCSViews
         string notice = "";
 
         // live radius editors, updated while dragging the map handle
-        NumericUpDown radiusBox;
+        InlineNumber radiusBox;
+        InlineNumber detailAltBox;
+        TrackBar detailAltSlider;
         TrackBar radiusSlider;
         bool radiusDrag;
 
@@ -220,6 +222,53 @@ namespace MissionPlanner.GCSViews
             Tool("ROI", "◎", (s, e) => SetAddTool(addTool == "ROI" ? null : "ROI"));
             Tool("Land", "⇩", (s, e) => AddLand());
             Tool("RTL", "⌂", (s, e) => AddRtl());
+
+            toolY += 6;
+            var lbl = new Label
+            {
+                Text = "Default alt", ForeColor = Color.Gainsboro, Font = new Font("Arial", 8.5f),
+                Location = new Point(6, toolY), AutoSize = true
+            };
+            toolStrip.Controls.Add(lbl);
+            toolY += 18;
+            var def = new InlineNumber
+            {
+                Location = new Point(6, toolY), Width = 80, Minimum = 0, Maximum = 30000, Increment = 5,
+                Unit = "ft", Font = new Font("Arial", 9.5f)
+            };
+            def.Value = (decimal) Math.Round(DefaultAltMetres * FtPerM);
+            def.ValueChanged += (s, e) =>
+            {
+                if (def.Value > 0)
+                    DefaultAltMetres = (double) def.Value / FtPerM;
+            };
+            toolStrip.Controls.Add(def);
+            toolY += 32;
+            var all = FlatButton("Set all", 80, 28);
+            all.Font = new Font("Arial", 8.5f);
+            all.Location = new Point(6, toolY);
+            all.Click += (s, e) => ApplyDefaultAltToAll();
+            toolStrip.Controls.Add(all);
+            toolY += 34;
+        }
+
+        void ApplyDefaultAltToAll()
+        {
+            var alt = (float) DefaultAltMetres;
+            if ((int) DialogResult.Yes != CustomMessageBox.Show(
+                    "Set every waypoint and loiter to " + FtText(alt) + "?", "QPlan", MessageBoxButtons.YesNo))
+                return;
+            for (int i = 0; i < items.Count; i++)
+            {
+                var wp = items[i];
+                if (!MissionProfile.IsNavWithLocation(wp.id) || wp.id == (ushort) MAVLink.MAV_CMD.LAND ||
+                    wp.id == (ushort) MAVLink.MAV_CMD.VTOL_LAND)
+                    continue;
+                wp.alt = alt;
+                items[i] = wp;
+            }
+
+            Changed(true);
         }
 
         void BuildRightPanel()
@@ -545,13 +594,27 @@ namespace MissionPlanner.GCSViews
             map.Cursor = tool != null ? Cursors.Cross : Cursors.Default;
         }
 
+        /// <summary>altitude new waypoints get (metres, relative to home); set in the left tool strip</summary>
+        static double DefaultAltMetres
+        {
+            get
+            {
+                var v = Settings.Instance.GetDouble("QPlan_DefaultAltM", 0);
+                if (v > 0)
+                    return v;
+                return MainV2.instance?.FlightPlanner?.DefaultAltitudeMetres ?? 100;
+            }
+            set => Settings.Instance["QPlan_DefaultAltM"] =
+                value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
         double LastAltitude()
         {
             for (int i = items.Count - 1; i >= 0; i--)
                 if (MissionProfile.IsNavWithLocation(items[i].id) && items[i].id != (ushort) MAVLink.MAV_CMD.LAND &&
                     items[i].id != (ushort) MAVLink.MAV_CMD.VTOL_LAND)
                     return items[i].alt;
-            return MainV2.instance?.FlightPlanner?.DefaultAltitudeMetres ?? 50;
+            return DefaultAltMetres;
         }
 
         void InsertItem(int at, Locationwp wp)
@@ -582,7 +645,7 @@ namespace MissionPlanner.GCSViews
 
             InsertItem(InsertPosition(), new Locationwp
             {
-                id = (ushort) MAVLink.MAV_CMD.WAYPOINT, lat = p.Lat, lng = p.Lng, alt = (float) LastAltitude(),
+                id = (ushort) MAVLink.MAV_CMD.WAYPOINT, lat = p.Lat, lng = p.Lng, alt = (float) DefaultAltMetres,
                 frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
             });
         }
@@ -598,7 +661,7 @@ namespace MissionPlanner.GCSViews
             InsertItem(0, new Locationwp
             {
                 id = (ushort) MAVLink.MAV_CMD.TAKEOFF, p1 = 15, lat = 0, lng = 0,
-                alt = (float) (MainV2.instance?.FlightPlanner?.DefaultAltitudeMetres ?? 50),
+                alt = (float) DefaultAltMetres,
                 frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
             });
         }
@@ -1017,7 +1080,7 @@ namespace MissionPlanner.GCSViews
             if (grabbed is GMapMarkerInsertHandle handle)
             {
                 // insert a waypoint halfway along the leg into the selected item
-                var prevAlt = LastAltitudeBefore(handle.InsertAt);
+                var prevAlt = DefaultAltMetres;
                 InsertItem(handle.InsertAt, new Locationwp
                 {
                     id = (ushort) MAVLink.MAV_CMD.WAYPOINT, lat = handle.Position.Lat, lng = handle.Position.Lng,
@@ -1035,7 +1098,7 @@ namespace MissionPlanner.GCSViews
             for (int i = Math.Min(index, items.Count) - 1; i >= 0; i--)
                 if (MissionProfile.IsNavWithLocation(items[i].id) && items[i].alt > 0)
                     return items[i].alt;
-            return LastAltitude();
+            return DefaultAltMetres;
         }
 
         void ShowMapMenu(Point at)
@@ -1105,21 +1168,16 @@ namespace MissionPlanner.GCSViews
 
             int w = Math.Max(240, right.Width - SystemInformation.VerticalScrollBarWidth - 14);
             int y = 4;
-            y = AddRow(-1, "H", "Mission Start", FtText(home.Alt) + " MSL", y, w);
+            y = AddRow(-1, "H", "Mission Start", FtText(home.Alt) + " MSL", y, w, false, 0);
             for (int i = 0; i < items.Count; i++)
             {
                 var wp = items[i];
+                bool hasAlt = MissionProfile.IsNavWithLocation(wp.id) &&
+                              wp.id != (ushort) MAVLink.MAV_CMD.RETURN_TO_LAUNCH;
                 string rightText = "";
-                if (wp.id == (ushort) MAVLink.MAV_CMD.DO_SET_ROI)
-                    rightText = "";
-                else if (MissionProfile.IsNavWithLocation(wp.id))
-                {
-                    rightText = FtText(wp.alt);
-                    if (IsLoiter(wp.id) && LoiterRadius(wp) > 0)
-                        rightText += " · r " + FtText(LoiterRadius(wp));
-                }
-
-                y = AddRow(i, (i + 1).ToString(), CommandName(wp.id), rightText, y, w);
+                if (hasAlt && IsLoiter(wp.id))
+                    rightText = "r " + FtText(DisplayRadius(wp));
+                y = AddRow(i, (i + 1).ToString(), CommandName(wp.id), rightText, y, w, hasAlt, wp.alt);
             }
 
             list.ResumeLayout();
@@ -1132,7 +1190,42 @@ namespace MissionPlanner.GCSViews
             }
         }
 
-        int AddRow(int index, string number, string name, string rightText, int y, int w)
+        /// <summary>altitude typed or dragged in a mission-list row</summary>
+        void AltChangedFromList(int index, double ft)
+        {
+            if (index < 0 || index >= items.Count)
+                return;
+            var item = items[index];
+            item.alt = (float) (ft / FtPerM);
+            items[index] = item;
+            commitTimer.Stop();
+            commitTimer.Start();
+            RedrawMap();
+            UpdateSummary();
+            ScheduleProfile();
+            if (index == selected)
+            {
+                suppressEvents = true;
+                try
+                {
+                    if (detailAltBox != null && !detailAltBox.IsDisposed)
+                        detailAltBox.Value = (decimal) Math.Round(ft, 1);
+                    if (detailAltSlider != null && !detailAltSlider.IsDisposed && ft >= 0)
+                    {
+                        if (ft > detailAltSlider.Maximum)
+                            detailAltSlider.Maximum = (int) (Math.Ceiling(ft / 100) * 100);
+                        detailAltSlider.Value = (int) ft;
+                    }
+                }
+                finally
+                {
+                    suppressEvents = false;
+                }
+            }
+        }
+
+        int AddRow(int index, string number, string name, string rightText, int y, int w, bool editAlt,
+            double altMetres)
         {
             bool sel = selected == index;
             var row = new Panel
@@ -1149,11 +1242,25 @@ namespace MissionPlanner.GCSViews
             var r = new Label
             {
                 Text = rightText, ForeColor = Color.Silver, Font = new Font("Arial", 8.5f), AutoSize = false,
-                Size = new Size(150, 20), Location = new Point(w - 156, 12), TextAlign = ContentAlignment.MiddleRight
+                Size = new Size(editAlt ? 86 : 150, 20), Location = new Point(editAlt ? w - 90 : w - 156, 12),
+                TextAlign = ContentAlignment.MiddleRight
             };
             row.Controls.Add(circle);
             row.Controls.Add(nameLabel);
             row.Controls.Add(r);
+            if (editAlt)
+            {
+                // click to type the altitude, or click-and-drag to dial it
+                var alt = new InlineNumber
+                {
+                    Location = new Point(w - 186, 7), Size = new Size(92, 26), Minimum = -2000, Maximum = 30000,
+                    DecimalPlaces = 0, Increment = 5, Unit = "ft", Font = new Font("Arial", 9.5f)
+                };
+                alt.Value = (decimal) Math.Round(altMetres * FtPerM);
+                alt.ValueChanged += (s, e) => AltChangedFromList(index, (double) alt.Value);
+                row.Controls.Add(alt);
+                nameLabel.MaximumSize = new Size(w - 186 - 48, 24);
+            }
             EventHandler click = (s, e) => SelectItem(index);
             row.Click += click;
             circle.Click += click;
@@ -1214,14 +1321,14 @@ namespace MissionPlanner.GCSViews
             return l;
         }
 
-        NumericUpDown Number(int y, double value, double min, double max, int decimals, Action<double> changed,
+        InlineNumber Number(int y, double value, double min, double max, int decimals, Action<double> changed,
             int x = 190)
         {
-            var n = new NumericUpDown
+            var n = new InlineNumber
             {
                 Location = new Point(x, y), Width = detail.ClientSize.Width - x - 14, DecimalPlaces = decimals,
-                Minimum = (decimal) min, Maximum = (decimal) max, Increment = decimals > 0 ? 1 : 10,
-                Font = new Font("Arial", 10f)
+                Minimum = (decimal) min, Maximum = (decimal) max,
+                Increment = decimals >= 5 ? 0.00001m : decimals > 0 ? 1 : 5, Font = new Font("Arial", 10f)
             };
             suppressEvents = true;
             n.Value = (decimal) Math.Max(min, Math.Min(max, value));
@@ -1239,6 +1346,8 @@ namespace MissionPlanner.GCSViews
         {
             radiusBox = null;
             radiusSlider = null;
+            detailAltBox = null;
+            detailAltSlider = null;
             detail.SuspendLayout();
             foreach (Control c in detail.Controls.Cast<Control>().ToList())
             {
@@ -1447,6 +1556,8 @@ namespace MissionPlanner.GCSViews
                     altBox.Value = slider.Value;
                 };
                 detail.Controls.Add(slider);
+                detailAltBox = altBox;
+                detailAltSlider = slider;
                 y += 80;
             }
 

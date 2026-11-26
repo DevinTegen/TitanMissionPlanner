@@ -24,7 +24,7 @@ namespace MissionPlanner.GCSViews
         static readonly HttpClient http = MakeClient();
 
         readonly GMapControl map;
-        readonly TextBox box = new TextBox();
+        readonly InlineTextBox box = new InlineTextBox();
         readonly Button go = new Button();
         readonly Button more = new Button();
         List<Place> lastResults = new List<Place>();
@@ -52,37 +52,11 @@ namespace MissionPlanner.GCSViews
             Size = new Size(width, 30);
             BackColor = Color.FromArgb(40, 43, 48);
 
-            box.Location = new Point(4, 4);
-            box.Width = width - 4 - 34 - 26 - 6;
+            box.Location = new Point(4, 2);
+            box.Size = new Size(width - 4 - 34 - 26 - 6, 26);
             box.Font = new Font("Arial", 10f);
-            box.BorderStyle = BorderStyle.FixedSingle;
-            SetHint();
-            box.GotFocus += (s, e) =>
-            {
-                if (box.ForeColor == Color.Gray)
-                {
-                    box.Text = "";
-                    box.ForeColor = Color.Black;
-                }
-            };
-            box.LostFocus += (s, e) =>
-            {
-                if (string.IsNullOrWhiteSpace(box.Text))
-                    SetHint();
-            };
-            box.KeyDown += (s, e) =>
-            {
-                if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Return)
-                {
-                    e.Handled = true;
-                    e.SuppressKeyPress = true;
-                    Search();
-                }
-                else if (e.KeyCode == Keys.Escape)
-                {
-                    map.Focus();
-                }
-            };
+            box.Placeholder = "Search places (e.g. Pendleton, OR)";
+            box.EnterPressed += (s, e) => Search();
 
             go.Text = "Go";
             go.Location = new Point(box.Right + 3, 2);
@@ -110,15 +84,9 @@ namespace MissionPlanner.GCSViews
             b.FlatAppearance.BorderSize = 0;
         }
 
-        void SetHint()
-        {
-            box.Text = "Search places (e.g. Pendleton, OR)";
-            box.ForeColor = Color.Gray;
-        }
-
         async void Search()
         {
-            var q = box.ForeColor == Color.Gray ? "" : box.Text.Trim();
+            var q = (box.Text ?? "").Trim();
             if (q == "" || busy)
                 return;
 
