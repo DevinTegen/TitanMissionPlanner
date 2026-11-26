@@ -659,8 +659,36 @@ namespace MissionPlanner.GCSViews
 
         void AddAt(PointLatLng p)
         {
+            // empty mission: the first click puts home (launch point) there and adds the takeoff, so the next
+            // click is waypoint 2
+            if (items.Count == 0 && addTool == "Waypoint")
+            {
+                SetHome(p);
+                InsertItem(0, new Locationwp
+                {
+                    id = (ushort) MAVLink.MAV_CMD.TAKEOFF, p1 = 15, lat = 0, lng = 0,
+                    alt = (float) DefaultAltMetres, frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
+                });
+                notice = "Home and takeoff set. Click to add waypoints.";
+                return;
+            }
+
             if (home.Lat == 0 && home.Lng == 0)
                 SetHome(p);
+
+            // first waypoint of a mission without a takeoff: put the takeoff in front of it
+            if (addTool == "Waypoint" && !items.Any(a =>
+                    a.id == (ushort) MAVLink.MAV_CMD.TAKEOFF || a.id == (ushort) MAVLink.MAV_CMD.VTOL_TAKEOFF) &&
+                !items.Any(a => MissionProfile.IsNavWithLocation(a.id)))
+            {
+                items.Insert(0, new Locationwp
+                {
+                    id = (ushort) MAVLink.MAV_CMD.TAKEOFF, p1 = 15, lat = 0, lng = 0,
+                    alt = (float) DefaultAltMetres, frame = (byte) MAVLink.MAV_FRAME.GLOBAL_RELATIVE_ALT
+                });
+                if (selected >= 0)
+                    selected++;
+            }
 
             if (addTool == "ROI")
             {
@@ -792,7 +820,7 @@ namespace MissionPlanner.GCSViews
         void SetHome(PointLatLng p)
         {
             var t = MissionProfile.TerrainAt(p.Lat, p.Lng);
-            home = new PointLatLngAlt(p.Lat, p.Lng, double.IsNaN(t) ? home.Alt : t, "H");
+            home = new PointLatLngAlt(p.Lat, p.Lng, double.IsNaN(t) ? 0 : t, "H"); // 0 = filled in once terrain loads
         }
 
         void DeleteItem(int index)
@@ -1862,6 +1890,21 @@ namespace MissionPlanner.GCSViews
                         if (gen != profileGeneration)
                             return;
                         lastProfile = prof;
+                        // home elevation unknown (0): take it from the terrain under home once that has loaded
+                        if ((home.Lat != 0 || home.Lng != 0) && Math.Abs(home.Alt) < 0.5)
+                        {
+                            var t = MissionProfile.TerrainAt(home.Lat, home.Lng);
+                            if (!double.IsNaN(t) && Math.Abs(t) > 0.5)
+                            {
+                                home = new PointLatLngAlt(home.Lat, home.Lng, t, "H");
+                                CommitNow();
+                                RedrawMap();
+                                RebuildList();
+                                ScheduleProfile();
+                                return;
+                            }
+                        }
+
                         profileView.ClearanceMetres = FlightPlanner.TerrainClearanceMetres;
                         profileView.SelectedItem = selected;
                         profileView.Profile = prof;
