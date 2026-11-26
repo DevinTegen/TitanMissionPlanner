@@ -982,7 +982,9 @@ namespace MissionPlanner.GCSViews
                 }
             }
 
-            return best ?? hoverMarker;
+            // only what is actually under the pointer: the hover marker can be stale (Mac doesn't always send
+            // marker-leave), which made dragging the map drag the last waypoint instead
+            return best;
         }
 
         void Map_MouseDown(object sender, MouseEventArgs e)
@@ -1272,7 +1274,7 @@ namespace MissionPlanner.GCSViews
             var r = new Label
             {
                 Text = rightText, ForeColor = Color.Silver, Font = new Font("Arial", 8.5f), AutoSize = false,
-                Size = new Size(editAlt ? 86 : 150, 20), Location = new Point(editAlt ? w - 90 : w - 156, 12),
+                Size = new Size(editAlt ? 86 : 150, 20), Location = new Point(editAlt ? w - 118 : w - 184, 12),
                 TextAlign = ContentAlignment.MiddleRight
             };
             row.Controls.Add(circle);
@@ -1283,13 +1285,27 @@ namespace MissionPlanner.GCSViews
                 // click to type the altitude, or click-and-drag to dial it
                 var alt = new InlineNumber
                 {
-                    Location = new Point(w - 186, 7), Size = new Size(92, 26), Minimum = -2000, Maximum = 30000,
+                    Location = new Point(w - 214, 7), Size = new Size(92, 26), Minimum = -2000, Maximum = 30000,
                     DecimalPlaces = 0, Increment = 5, Unit = "ft", Font = new Font("Arial", 9.5f)
                 };
                 alt.Value = (decimal) Math.Round(altMetres * FtPerM);
                 alt.ValueChanged += (s, e) => AltChangedFromList(index, (double) alt.Value);
                 row.Controls.Add(alt);
-                nameLabel.MaximumSize = new Size(w - 186 - 48, 24);
+                nameLabel.MaximumSize = new Size(w - 214 - 48, 24);
+            }
+
+            if (index >= 0)
+            {
+                // delete this item
+                var del = new Button
+                {
+                    Text = "✕", Size = new Size(24, 24), Location = new Point(w - 30, 8), FlatStyle = FlatStyle.Flat,
+                    BackColor = Color.FromArgb(120, 35, 30), ForeColor = Color.White,
+                    Font = new Font("Arial", 9f, FontStyle.Bold), TabStop = false, Cursor = Cursors.Hand
+                };
+                del.FlatAppearance.BorderSize = 0;
+                del.Click += (s, e) => DeleteItem(index);
+                row.Controls.Add(del);
             }
             EventHandler click = (s, e) => SelectItem(index);
             row.Click += click;
