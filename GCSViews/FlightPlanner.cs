@@ -7737,6 +7737,8 @@ Column 1: Field type (RALLY is the only one at the moment -- may have RALLY_LAND
 
             MouseDownStart = MainMap.FromLocalToLatLng(e.X, e.Y);
             MouseDownStartLocal = e.Location;
+            MouseDownTime = DateTime.Now;
+            MouseDownFirstLocal = e.Location;
 
             //   Console.WriteLine("MainMap MD");
 
@@ -8091,8 +8093,9 @@ Column 1: Field type (RALLY is the only one at the moment -- may have RALLY_LAND
                     {
                         // cant add WP in existing rect
                     }
-                    else
+                    else if (IsQuickClick(e.Location))
                     {
+                        // only a quick click that didn't move adds a waypoint; click-and-hold never does
                         AddWPToMap(currentMarker.Position.Lat, currentMarker.Position.Lng, 0);
                     }
                 }

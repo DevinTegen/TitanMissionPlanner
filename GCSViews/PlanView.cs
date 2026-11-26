@@ -102,6 +102,7 @@ namespace MissionPlanner.GCSViews
             map.MaxZoom = 24;
             map.MarkersEnabled = true;
             map.RoutesEnabled = true;
+            map.CanDragMap = false;
             map.PolygonsEnabled = true;
             map.Overlays.Add(routeOverlay);
             map.Overlays.Add(markerOverlay);
@@ -846,6 +847,38 @@ namespace MissionPlanner.GCSViews
             map.Invalidate();
         }
 
+        const int ClickSlopPixels = 6;
+        const int ShortClickMs = 350;
+        DateTime mouseDownTime;
+        GMapMarker downMarker;
+
+        /// <summary>what's under the pointer: radius handle, then + handle, then a mission marker</summary>
+        GMapMarker HitTest(Point pt)
+        {
+            GMapMarker best = null;
+            int bestRank = int.MaxValue;
+            double bestDist = double.MaxValue;
+            foreach (var m in markerOverlay.Markers)
+            {
+                int rank = m is GMapMarkerRadiusHandle ? 0 : m is GMapMarkerInsertHandle ? 1 :
+                    m is GMapMarkerPlanItem ? 2 : -1;
+                if (rank < 0)
+                    continue;
+                var lp = map.FromLatLngToLocal(m.Position);
+                double d = Math.Sqrt(Math.Pow(lp.X - pt.X, 2) + Math.Pow(lp.Y - pt.Y, 2));
+                if (d > 16)
+                    continue;
+                if (rank < bestRank || (rank == bestRank && d < bestDist))
+                {
+                    best = m;
+                    bestRank = rank;
+                    bestDist = d;
+                }
+            }
+
+            return best ?? hoverMarker;
+        }
+
         void Map_MouseDown(object sender, MouseEventArgs e)
         {
             if (e.Button == MouseButtons.Right)
@@ -859,20 +892,21 @@ namespace MissionPlanner.GCSViews
 
             mouseDown = true;
             mouseMoved = false;
+            mouseDownTime = DateTime.Now;
             mouseDownStart = e.Location;
             lastMouse = e.Location;
-            radiusDrag = hoverMarker is GMapMarkerRadiusHandle;
-            dragIndex = hoverMarker is GMapMarkerPlanItem pi ? pi.ItemIndex :
-                hoverMarker is GMapMarkerRadiusHandle rh ? rh.ItemIndex : -3;
-            if (dragIndex != -3)
-                map.CanDragMap = false;
+            downMarker = HitTest(e.Location);
+            radiusDrag = downMarker is GMapMarkerRadiusHandle;
+            dragIndex = downMarker is GMapMarkerPlanItem pi ? pi.ItemIndex :
+                downMarker is GMapMarkerRadiusHandle rh ? rh.ItemIndex : -3;
+            map.CanDragMap = false;
         }
 
         void Map_MouseMove(object sender, MouseEventArgs e)
         {
-            if (!mouseDown || e.Button != MouseButtons.Left)
+            if (!mouseDown)
                 return;
-            if (!mouseMoved && Math.Abs(e.X - mouseDownStart.X) + Math.Abs(e.Y - mouseDownStart.Y) < 4)
+            if (!mouseMoved && Math.Abs(e.X - mouseDownStart.X) + Math.Abs(e.Y - mouseDownStart.Y) < ClickSlopPixels)
                 return;
             mouseMoved = true;
 
@@ -891,6 +925,7 @@ namespace MissionPlanner.GCSViews
 
             if (dragIndex != -3)
             {
+                // move the grabbed waypoint / home
                 var p = map.FromLocalToLatLng(e.X, e.Y);
                 if (dragIndex == -1)
                 {
@@ -908,7 +943,7 @@ namespace MissionPlanner.GCSViews
                 return;
             }
 
-            // pan with the left button, like the classic planner
+            // nothing grabbed: pan the map
             int dx = e.X - lastMouse.X, dy = e.Y - lastMouse.Y;
             if (dx == 0 && dy == 0)
                 return;
@@ -923,14 +958,20 @@ namespace MissionPlanner.GCSViews
             if (e.Button != MouseButtons.Left || !mouseDown)
                 return;
             mouseDown = false;
-            map.CanDragMap = true;
             var index = dragIndex;
+            var grabbed = downMarker;
             dragIndex = -3;
+            downMarker = null;
+
+            // a quick click that didn't move; anything held or dragged is a drag, never an add
+            bool moved = mouseMoved ||
+                         Math.Abs(e.X - mouseDownStart.X) + Math.Abs(e.Y - mouseDownStart.Y) >= ClickSlopPixels;
+            bool shortClick = !moved && (DateTime.Now - mouseDownTime).TotalMilliseconds < ShortClickMs;
 
             if (radiusDrag)
             {
                 radiusDrag = false;
-                if (mouseMoved)
+                if (moved)
                 {
                     Changed(false);
                     UpdateSummary();
@@ -941,7 +982,7 @@ namespace MissionPlanner.GCSViews
 
             if (index != -3)
             {
-                if (mouseMoved)
+                if (moved)
                 {
                     if (index == -1)
                         SetHome(home);
@@ -957,7 +998,10 @@ namespace MissionPlanner.GCSViews
                 return;
             }
 
-            if (!mouseMoved && hoverMarker is GMapMarkerInsertHandle handle)
+            if (moved || !shortClick)
+                return;
+
+            if (grabbed is GMapMarkerInsertHandle handle)
             {
                 // insert a waypoint halfway along the leg into the selected item
                 var prevAlt = LastAltitudeBefore(handle.InsertAt);
@@ -969,7 +1013,7 @@ namespace MissionPlanner.GCSViews
                 return;
             }
 
-            if (!mouseMoved && addTool != null)
+            if (addTool != null)
                 AddAt(map.FromLocalToLatLng(e.X, e.Y));
         }
 
