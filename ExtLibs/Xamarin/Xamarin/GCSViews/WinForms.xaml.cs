@@ -417,7 +417,8 @@ namespace Xamarin.GCSViews
             {
                 StartThreads();
 
-                XplatUIMine.GetInstance().Keyboard = new Keyboard(Entry);
+                CurrentKeyboard = new Keyboard(Entry);
+                XplatUIMine.GetInstance().Keyboard = CurrentKeyboard;
                 start = true;
             }
 
@@ -427,8 +428,72 @@ namespace Xamarin.GCSViews
 
             base.OnAppearing();
         }
+        static Keyboard CurrentKeyboard;
+
+        /// <summary>
+        /// Return/Enter pressed (from the Mac key monitor): if the text-entry field is showing, accept what was
+        /// typed into the WinForms control. Returns true when it handled the key.
+        /// </summary>
+        public static bool CompleteTextEntry()
+        {
+            var kb = CurrentKeyboard;
+            if (kb == null || !kb.EntryVisible)
+                return false;
+            Device.BeginInvokeOnMainThread(() => kb.Complete());
+            return true;
+        }
+
         public class Keyboard: KeyboardXplat
         {
+            public bool EntryVisible => _inputView != null && _inputView.IsVisible;
+
+            public void Complete()
+            {
+                if (!_inputView.IsVisible)
+                    return;
+                // Completed hides the field and pushes the text to the control; unhook Unfocused so it isn't applied twice
+                _inputView.Unfocused -= _inputView_Unfocused;
+                _inputView_Completed(_inputView, EventArgs.Empty);
+                caretptr = IntPtr.Zero;
+                try
+                {
+                    _inputView.Unfocus();
+                }
+                catch
+                {
+                }
+            }
+
+            /// <summary>place the text-entry field over the control being edited instead of over the whole window</summary>
+            void PlaceOver(System.Windows.Forms.Control ctl)
+            {
+                try
+                {
+                    var inst = Instance;
+                    if (inst == null || inst.size.Width <= 0 || inst.size.Height <= 0 || inst.SkCanvasView.Width <= 0)
+                        throw new InvalidOperationException("no size yet");
+                    var r = ctl.RectangleToScreen(ctl.ClientRectangle);
+                    double kx = inst.SkCanvasView.Width / inst.size.Width;
+                    double ky = inst.SkCanvasView.Height / inst.size.Height;
+                    double w = Math.Max(r.Width * kx, 140);
+                    double h = Math.Max(r.Height * ky, 26);
+                    double x = Math.Max(0, Math.Min(r.X * kx, inst.SkCanvasView.Width - w));
+                    double y = Math.Max(0, Math.Min(r.Y * ky - (h - r.Height * ky) / 2, inst.SkCanvasView.Height - h));
+                    AbsoluteLayout.SetLayoutFlags(_inputView, AbsoluteLayoutFlags.None);
+                    AbsoluteLayout.SetLayoutBounds(_inputView, new Xamarin.Forms.Rectangle(x, y, w, h));
+                    _inputView.FontSize = Math.Max(11, Math.Min(18, h * 0.55));
+                    _inputView.BackgroundColor = Xamarin.Forms.Color.White;
+                    _inputView.TextColor = Xamarin.Forms.Color.Black;
+                }
+                catch (Exception ex)
+                {
+                    // fall back to a strip across the top rather than the whole window
+                    Console.WriteLine("PlaceOver " + ex.Message);
+                    AbsoluteLayout.SetLayoutFlags(_inputView, AbsoluteLayoutFlags.WidthProportional);
+                    AbsoluteLayout.SetLayoutBounds(_inputView, new Xamarin.Forms.Rectangle(0, 0, 1, 36));
+                }
+            }
+
             private readonly Forms.Entry _inputView;
 
             private Entry view;
@@ -504,6 +569,7 @@ namespace Xamarin.GCSViews
                             // set                  
 
                             _inputView.Text = focusctl.Text;
+                            PlaceOver(focusctl);
                             // rebind
                             _inputView.Completed += _inputView_Completed;
                             _inputView.TextChanged += View_TextChanged;

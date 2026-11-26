@@ -52,7 +52,19 @@ namespace Xamarin.MacOS
 
         private NSEvent KeyboardEventHandler(NSEvent keyEvent)
         {
-            Console.WriteLine(keyEvent.KeyCode);
+            // Return (36) / keypad Enter (76): accept the text typed into the edit field
+            if (keyEvent.KeyCode == 36 || keyEvent.KeyCode == 76)
+            {
+                try
+                {
+                    if (WinForms.CompleteTextEntry())
+                        return null;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine(ex);
+                }
+            }
 
             return keyEvent;
         }

@@ -328,6 +328,18 @@ namespace MissionPlanner.GCSViews
 
                 LoadFromPlanner();
 
+                // nothing to show yet: go back to where the map was last time
+                if ((map.Position.Lat == 0 && map.Position.Lng == 0) || map.Zoom < 4)
+                {
+                    var lat = Settings.Instance.GetDouble("QPlan_MapLat", 0);
+                    var lng = Settings.Instance.GetDouble("QPlan_MapLng", 0);
+                    if (lat != 0 || lng != 0)
+                    {
+                        map.Position = new PointLatLng(lat, lng);
+                        map.Zoom = Settings.Instance.GetDouble("QPlan_MapZoom", 12);
+                    }
+                }
+
                 if (map.Zoom < 5)
                 {
                     if (home.Lat != 0 || home.Lng != 0)
@@ -350,6 +362,8 @@ namespace MissionPlanner.GCSViews
 
         public void Deactivate()
         {
+            SaveMapView();
+
             if (commitTimer.Enabled)
             {
                 commitTimer.Stop();
@@ -357,6 +371,22 @@ namespace MissionPlanner.GCSViews
             }
 
             SetAddTool(null);
+        }
+
+        void SaveMapView()
+        {
+            try
+            {
+                if (map.Position.Lat == 0 && map.Position.Lng == 0)
+                    return;
+                var ci = System.Globalization.CultureInfo.InvariantCulture;
+                Settings.Instance["QPlan_MapLat"] = map.Position.Lat.ToString(ci);
+                Settings.Instance["QPlan_MapLng"] = map.Position.Lng.ToString(ci);
+                Settings.Instance["QPlan_MapZoom"] = map.Zoom.ToString(ci);
+            }
+            catch
+            {
+            }
         }
 
         void LoadFromPlanner()

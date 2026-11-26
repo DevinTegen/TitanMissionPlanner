@@ -40,21 +40,84 @@ namespace MissionPlanner.GCSViews
             };
         }
 
-        public bool Editing => editText != null;
+        public bool Editing => editText != null || typing != null;
+
+        TextBox typing;
+
+        /// <summary>
+        /// Open a real TextBox over this field for typing. On the Mac build keyboard text only reaches TextBoxes
+        /// (through the app's text-entry field), so self-drawn fields hand typing to one of these.
+        /// </summary>
+        protected void StartTyping(string initial)
+        {
+            if (typing != null || Parent == null)
+                return;
+            var tb = new TextBox
+            {
+                Bounds = Bounds, Text = initial, Font = Font, BorderStyle = BorderStyle.FixedSingle,
+                BackColor = Color.White, ForeColor = Color.Black
+            };
+            typing = tb;
+            bool done = false;
+            Action finish = () =>
+            {
+                if (done)
+                    return;
+                done = true;
+                var text = tb.Text;
+                typing = null;
+                try
+                {
+                    BeginInvoke((Action) (() =>
+                    {
+                        tb.Parent?.Controls.Remove(tb);
+                        tb.Dispose();
+                    }));
+                }
+                catch
+                {
+                }
+
+                TypedText(text);
+            };
+            tb.TextChanged += (s, e) => finish();
+            tb.LostFocus += (s, e) => finish();
+            tb.KeyDown += (s, e) =>
+            {
+                if (e.KeyCode == Keys.Enter || e.KeyCode == Keys.Return)
+                {
+                    e.Handled = e.SuppressKeyPress = true;
+                    finish();
+                }
+                else if (e.KeyCode == Keys.Escape)
+                {
+                    done = true;
+                    typing = null;
+                    tb.Parent?.Controls.Remove(tb);
+                    tb.Dispose();
+                }
+            };
+            Parent.Controls.Add(tb);
+            tb.BringToFront();
+            tb.Focus();
+            tb.SelectAll();
+        }
+
+        /// <summary>text accepted from the typing box</summary>
+        protected virtual void TypedText(string text)
+        {
+            Text = text;
+            Invalidate();
+            EnterPressed?.Invoke(this, EventArgs.Empty);
+        }
 
         protected virtual string DisplayText => Text;
 
-        protected override void OnMouseDown(MouseEventArgs e)
+        protected override void OnMouseUp(MouseEventArgs e)
         {
-            base.OnMouseDown(e);
-            if (e.Button == MouseButtons.Left && !Focused)
-                Focus();
-        }
-
-        protected override void OnGotFocus(EventArgs e)
-        {
-            base.OnGotFocus(e);
-            BeginEdit();
+            base.OnMouseUp(e);
+            if (e.Button == MouseButtons.Left)
+                StartTyping(Text);
         }
 
         protected void BeginEdit()
@@ -271,9 +334,11 @@ namespace MissionPlanner.GCSViews
 
         protected override bool Accept(char c) => char.IsDigit(c) || c == '.' || c == '-';
 
-        protected override void OnGotFocus(EventArgs e)
+        protected override void TypedText(string text)
         {
-            // editing starts on a click without a drag (see OnMouseUp), or when typing
+            var t = (text ?? "").Replace(Unit, "").Trim();
+            if (decimal.TryParse(t, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+                Value = v;
             Invalidate();
         }
 
@@ -309,17 +374,13 @@ namespace MissionPlanner.GCSViews
 
         protected override void OnMouseUp(MouseEventArgs e)
         {
-            base.OnMouseUp(e);
+            // not base: the text field's mouse-up would open a second typing box
             if (!down)
                 return;
             down = false;
             Capture = false;
             if (!dragged)
-            {
-                if (!Focused)
-                    Focus();
-                BeginEdit();
-            }
+                StartTyping(DisplayText);
         }
 
         protected override void OnMouseWheel(MouseEventArgs e)
