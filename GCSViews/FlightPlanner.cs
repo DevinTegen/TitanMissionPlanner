@@ -63,6 +63,27 @@ namespace MissionPlanner.GCSViews
             InitializeComponent();
             Init();
             InitTerrainTools();
+            AddMapSearch(MainMap);
+        }
+
+        /// <summary>place search box in the top-right corner of a map</summary>
+        internal static void AddMapSearch(GMap.NET.WindowsForms.GMapControl map)
+        {
+            try
+            {
+                var search = new MapSearchBox(map, 320);
+                search.Anchor = AnchorStyles.Top | AnchorStyles.Right;
+                search.Location = new System.Drawing.Point(Math.Max(0, map.Width - search.Width - 60), 8);
+                map.Controls.Add(search);
+                search.BringToFront();
+                map.SizeChanged += (s2, e2) =>
+                    search.Location = new System.Drawing.Point(Math.Max(0, map.Width - search.Width - 60), 8);
+                PlaceLabels.Attach(map);
+            }
+            catch (Exception ex)
+            {
+                log.Error(ex);
+            }
         }
 
 

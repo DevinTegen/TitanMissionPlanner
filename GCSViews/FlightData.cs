@@ -283,6 +283,7 @@ namespace MissionPlanner.GCSViews
             //    dockContainer1.PreviewRenderer = new PreviewRenderer();
             //
             mymap = gMapControl1;
+            FlightPlanner.AddMapSearch(gMapControl1);
             myhud = hud1;
             MainHcopy = MainH;
 

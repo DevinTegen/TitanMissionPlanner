@@ -104,6 +104,7 @@ namespace MissionPlanner.GCSViews
             map.RoutesEnabled = true;
             map.CanDragMap = false;
             map.PolygonsEnabled = true;
+            PlaceLabels.Attach(map);
             map.Overlays.Add(routeOverlay);
             map.Overlays.Add(markerOverlay);
             map.OnMarkerEnter += m => hoverMarker = m;
@@ -181,6 +182,18 @@ namespace MissionPlanner.GCSViews
             BarAdd("Download", 100, (s, e) => Download());
             BarAdd("Clear", 90, (s, e) => ClearMission());
             BarAdd("Classic planner", 130, (s, e) => MainV2.View.ShowScreen("FlightPlanner"));
+
+            var labels = new CheckBox
+            {
+                Text = "Town names", ForeColor = Color.White, Checked = PlaceLabels.Enabled, AutoSize = true,
+                Location = new Point(barX + 4, 15), Font = new Font("Arial", 9.5f)
+            };
+            labels.CheckedChanged += (s, e) => PlaceLabels.Enabled = labels.Checked;
+            topBar.Controls.Add(labels);
+            barX += 120;
+
+            var search = new MapSearchBox(map, 320) {Location = new Point(barX + 12, 10)};
+            topBar.Controls.Add(search);
         }
 
         int toolY;
