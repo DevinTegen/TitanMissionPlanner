@@ -58,8 +58,17 @@ namespace MissionPlanner.Controls
         {
             base.OnHandleCreated(e);
 
-            // Set minimal margins to align with placeholder
-            SendMessage(Handle, EM_SETMARGINS, (IntPtr)(EC_LEFTMARGIN | EC_RIGHTMARGIN), (IntPtr)0x00020002);
+            // Set minimal margins to align with placeholder (Windows only: user32.dll doesn't exist on Mac/Linux)
+            if (Environment.OSVersion.Platform == PlatformID.Win32NT)
+            {
+                try
+                {
+                    SendMessage(Handle, EM_SETMARGINS, (IntPtr)(EC_LEFTMARGIN | EC_RIGHTMARGIN), (IntPtr)0x00020002);
+                }
+                catch (Exception)
+                {
+                }
+            }
         }
 
         protected override void OnKeyDown(KeyEventArgs e)
@@ -81,6 +90,8 @@ namespace MissionPlanner.Controls
             // WM_PAINT
             if (m.Msg == 0xF)
             {
+                try
+                {
                 if (!Focused && string.IsNullOrEmpty(Text) && !string.IsNullOrEmpty(_placeholderText))
                 {
                     using (Graphics g = Graphics.FromHwnd(Handle))
@@ -118,6 +129,11 @@ namespace MissionPlanner.Controls
                         TextRenderer.DrawText(g, _placeholderText, this.Font, rect, _placeholderColor,
                                             BackColor, flags);
                     }
+                }
+                }
+                catch (Exception)
+                {
+                    // placeholder drawing isn't supported everywhere (e.g. the Mac build); the box still works
                 }
             }
         }
